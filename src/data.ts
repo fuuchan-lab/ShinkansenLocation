@@ -15,7 +15,27 @@ export interface Network { attribution: string; lines: Line[]; routes: RouteDef[
 /** [経路内の駅index, 着(分), 発(分), 停車=1/通過=0] */
 export type TimetableStop = [number, number, number, 0 | 1];
 export interface Train { n: string; no: number; r: string; s: TimetableStop[] }
-export interface Timetable { note: string; types: Record<string, { color: string }>; trains: Train[] }
+export interface Timetable { note: string; trains: Train[] }
+
+/** timetable.json の形式: 停車パターン（時刻は始発駅の発車からの分）と [パターン, 号数, 発車時刻]。列車を直接書いてもよい */
+interface TimetableFile {
+  note: string;
+  patterns?: { n: string; r: string; s: TimetableStop[] }[];
+  trains: ([number, number, number] | Train)[];
+}
+
+const r1 = (x: number) => Math.round(x * 10) / 10;
+function expandTimetable({ note, patterns = [], trains }: TimetableFile): Timetable {
+  return {
+    note,
+    trains: trains.map((t) => {
+      if (!Array.isArray(t)) return t;
+      const [p, no, dep] = t;
+      const { n, r, s } = patterns[p];
+      return { n, no, r, s: s.map(([idx, arr, d, stop]): TimetableStop => [idx, r1(dep + arr), r1(dep + d), stop]) };
+    }),
+  };
+}
 
 /** 距離程つきの折れ線 */
 export interface Route {
@@ -88,15 +108,24 @@ export function pointAt(route: Route, km: number): { pos: LngLat; bearing: numbe
 
 export interface Airport { name: string; lng: number; lat: number }
 
+/** 対象範囲の外を隠すマスク（広い四角形から範囲をくり抜く） */
+function maskOf(area: AreaFeature): GeoJSONData {
+  const world: LngLat[] = [[100, -10], [190, -10], [190, 70], [100, 70], [100, -10]];
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'Polygon', coordinates: [world, ...area.geometry.coordinates.map((p) => p[0])] },
+  };
+}
+
 export async function loadData(): Promise<{ network: Network; timetable: Timetable; airports: Airport[]; mask: GeoJSONData; area: AreaFeature }> {
   const base = import.meta.env.BASE_URL;
   const get = <T>(file: string) => fetch(`${base}data/${file}`).then((r) => r.json() as Promise<T>);
-  const [network, timetable, airports, mask, area] = await Promise.all([
+  const [network, timetable, airports, area] = await Promise.all([
     get<Network>('network.json'),
-    get<Timetable>('timetable.json'),
+    get<TimetableFile>('timetable.json'),
     get<{ airports: Airport[] }>('airports.json'),
-    get<GeoJSONData>('mask.json'),
     get<AreaFeature>('area.json'),
   ]);
-  return { network, timetable, airports: airports.airports, mask, area };
+  return { network, timetable: expandTimetable(timetable), airports: airports.airports, mask: maskOf(area), area };
 }

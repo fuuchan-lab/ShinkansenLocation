@@ -159,6 +159,7 @@ function saveSetting(key: string, value: boolean) {
 const platforms = new Map<string, Map<string, number>>(); // `${駅}|${路線}|${向き}` -> 列車id -> 並び順
 const slotShown = new Map<string, number>();
 const TRACK_SPACING = 13; // 少し重なる程度の間隔（アイコン幅18に対して）
+// 列車アイコンの大きさ [ズーム, 倍率]（地図の表示設定と、のりばの間隔の計算で共用）
 const ICON_SCALE: [number, number][] = [[4, 0.32], [6, 0.5], [8, 0.75], [12, 1.1]];
 function iconScale(z: number): number {
   if (z <= ICON_SCALE[0][0]) return ICON_SCALE[0][1];
@@ -306,7 +307,6 @@ function addLayers() {
   map.addSource('aircraft', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('ships', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
-  // 日本以外を海の色で隠す
   // 対象範囲（日本の排他的経済水域）の外は白く隠し、境界を破線で示す
   map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': OUTSIDE, 'fill-antialias': false } });
   map.addLayer({
@@ -385,8 +385,8 @@ function addLayers() {
       'symbol-sort-key': ['get', 'alt'],
     },
   });
-  // 拡大したら、新幹線と同じようにアイコンの上へ便名・船名を出す
-  const liveLabel = (source: string, color: maplibregl.ExpressionSpecification | string) =>
+  // 拡大したら、アイコンの上へ列車名・便名・船名を出す
+  const label = (source: string, color: maplibregl.ExpressionSpecification | string) =>
     map.addLayer({
       id: `${source}-label`, type: 'symbol', source, minzoom: 7,
       layout: {
@@ -399,8 +399,8 @@ function addLayers() {
       },
       paint: { 'text-color': color, 'text-halo-color': '#fff', 'text-halo-width': 2 },
     });
-  liveLabel('ships', SHIP_COLOR);
-  liveLabel('aircraft', ['case', ['get', 'intl'], '#d6247e', '#8a6a00']);
+  label('ships', SHIP_COLOR);
+  label('aircraft', ['case', ['get', 'intl'], '#d6247e', '#8a6a00']);
   map.addLayer({
     id: 'aircraft-selected', type: 'circle', source: 'aircraft',
     filter: ['==', ['get', 'hex'], ''],
@@ -420,25 +420,14 @@ function addLayers() {
     id: 'train', type: 'symbol', source: 'trains',
     layout: {
       'icon-image': ['concat', 'train-', ['get', 'line']],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.32, 6, 0.5, 8, 0.75, 12, 1.1],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], ...ICON_SCALE.flat()],
       'icon-rotate': ['get', 'bearing'],
       'icon-rotation-alignment': 'map',
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
   });
-  map.addLayer({
-    id: 'train-label', type: 'symbol', source: 'trains', minzoom: 7,
-    layout: {
-      'text-field': ['get', 'label'],
-      'text-font': ['Noto Sans Regular'],
-      'text-size': 12,
-      'text-offset': [0, -1.6],
-      'text-anchor': 'bottom',
-      'text-allow-overlap': false,
-    },
-    paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#fff', 'text-halo-width': 2 },
-  });
+  label('trains', ['get', 'color']);
   // タップしやすいように透明な大きめの当たり判定
   map.addLayer({
     id: 'train-hit', type: 'circle', source: 'trains',
@@ -499,7 +488,7 @@ function buildLineFilter() {
       saveSetting('ships', showShips);
       ship.classList.toggle('on', showShips);
       ship.setAttribute('aria-pressed', String(showShips));
-      draw(nowMinutes());
+      drawLive();
     });
     for (const [key, label] of [['domestic', '国内線'], ['international', '国際線']] as const) {
       const b = document.createElement('button');
@@ -513,7 +502,7 @@ function buildLineFilter() {
         saveSetting(`planes.${key}`, showPlanes[key]);
         b.classList.toggle('on', showPlanes[key]);
         b.setAttribute('aria-pressed', String(showPlanes[key]));
-        draw(nowMinutes());
+        drawLive();
       });
       nav.appendChild(b);
     }
@@ -545,6 +534,7 @@ function buildLineFilter() {
 // ---- 位置の更新 ----
 let lastMinute = -1;
 let lastDraw = 0;
+let lastLiveDraw = 0;
 
 function frame(t: number) {
   const now = nowMinutes();
@@ -553,13 +543,21 @@ function frame(t: number) {
     lastMinute = minute;
     update(now);
   }
-  // 描画は 10fps 程度で十分
+  // 列車は 10fps 程度で十分。飛行機・船は 250ms で動く距離が拡大時でも 1px 程度なので 4fps
   if (t - lastDraw >= 100) {
     lastDraw = t;
     draw(now);
   }
+  if (t - lastLiveDraw >= 250) {
+    lastLiveDraw = t;
+    drawLive();
+  }
   requestAnimationFrame(frame);
 }
+
+type Feature = { type: 'Feature'; properties: Record<string, unknown>; geometry: { type: 'Point'; coordinates: [number, number] } };
+const setData = (source: string, features: Feature[]) =>
+  (map.getSource(source) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
 
 /** 時刻表から推定位置を計算し直す（1分ごと） */
 function update(now: number) {
@@ -591,7 +589,7 @@ function draw(now: number) {
   shown.clear();
   const spacing = TRACK_SPACING * iconScale(map.getZoom());
   const ids = new Set<string>();
-  const features = states.map((st) => {
+  const features = states.map((st): Feature => {
     const route = routes.get(st.train.r)!;
     const km = advance(st, elapsed) + (corrections.get(st.id) ?? 0) * fade;
     const { pos, bearing } = placeAt(route, km, st.dir);
@@ -606,15 +604,16 @@ function draw(now: number) {
     const p = map.project(pos);
     const at = map.unproject([p.x - Math.cos(b) * d, p.y - Math.sin(b) * d]);
     return {
-      type: 'Feature' as const,
+      type: 'Feature',
       properties: { id: st.id, line: st.line, color: lineColor.get(st.line) ?? '#333', label: `${st.train.n}${st.train.no}`, bearing },
-      geometry: { type: 'Point' as const, coordinates: [at.lng, at.lat] },
+      geometry: { type: 'Point', coordinates: [at.lng, at.lat] },
     };
   });
   for (const id of slotShown.keys()) if (!ids.has(id)) slotShown.delete(id);
-  (map.getSource('trains') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
-  drawAircraft();
-  $('clock-time').textContent = formatTime(Math.floor(now));
+  setData('trains', features);
+  const time = formatTime(Math.floor(now));
+  const clockTime = $('clock-time');
+  if (clockTime.textContent !== time) clockTime.textContent = time;
 
   if (sheet?.kind === 'train' && follow) {
     const p = shown.get(sheet.id);
@@ -624,25 +623,21 @@ function draw(now: number) {
 }
 
 /** 飛行機・旅客船は現在時刻の位置（時刻指定・早送りの影響を受けない） */
-function drawAircraft() {
+function drawLive() {
   const ms = Date.now();
   const visible = aircraft.filter((a) => (a.intl ? showPlanes.international : showPlanes.domestic));
-  const features = visible.map((a) => ({
-    type: 'Feature' as const,
+  setData('aircraft', visible.map((a) => ({
+    type: 'Feature',
     properties: { hex: a.hex, intl: a.intl, heading: a.heading ?? 0, alt: a.alt ?? 0, label: aircraftLabel(a) },
-    geometry: { type: 'Point' as const, coordinates: aircraftAt(a, ms) },
-  }));
-  (map.getSource('aircraft') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
+    geometry: { type: 'Point', coordinates: aircraftAt(a, ms) },
+  })));
 
   const shipList = showShips ? ships : [];
-  (map.getSource('ships') as GeoJSONSource | undefined)?.setData({
-    type: 'FeatureCollection',
-    features: shipList.map((s) => ({
-      type: 'Feature' as const,
-      properties: { mmsi: s.mmsi, heading: s.heading ?? 0, label: shipLabel(s) },
-      geometry: { type: 'Point' as const, coordinates: shipAt(s, ms) },
-    })),
-  });
+  setData('ships', shipList.map((s) => ({
+    type: 'Feature',
+    properties: { mmsi: s.mmsi, heading: s.heading ?? 0, label: shipLabel(s) },
+    geometry: { type: 'Point', coordinates: shipAt(s, ms) },
+  })));
 
   const count = $('clock-count');
   const live = LIVE_API ? `${visible.length ? ` ✈${visible.length}` : ''}${shipList.length ? ` ⛴${shipList.length}` : ''}` : '';

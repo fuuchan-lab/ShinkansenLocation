@@ -6,6 +6,14 @@
     <meta name="theme-color" content="#0b1f3a" />
     <meta name="description" content="日本の全新幹線の現在位置を、時刻表から推定して地図に表示します。" />
     <title>新幹線ロケーション</title>
+    <!-- 地図ライブラリの読み込みを待たずに、データの取得と地図タイルなどへの接続を始める -->
+    <link rel="preload" href="%BASE_URL%data/network.json" as="fetch" crossorigin />
+    <link rel="preload" href="%BASE_URL%data/timetable.json" as="fetch" crossorigin />
+    <link rel="preload" href="%BASE_URL%data/airports.json" as="fetch" crossorigin />
+    <link rel="preload" href="%BASE_URL%data/area.json" as="fetch" crossorigin />
+    <link rel="preconnect" href="https://cyberjapandata.gsi.go.jp" />
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="preconnect" href="%VITE_LIVE_API%" crossorigin />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚄</text></svg>" />
   </head>
   <body>

@@ -2,9 +2,10 @@
 // 使い方: node scripts/generate-timetable.mjs
 // 入力: public/data/network.json / 出力: public/data/timetable.json
 //
-// 出力形式（実際の時刻表データに差し替える場合もこの形式に合わせる）:
-//   trains[]: { n: 列車名, no: 号数, r: 経路id, s: [[経路内の駅index, 着(分), 発(分), 停車=1/通過=0], ...] }
-//   時刻は 0:00 からの分（日本時間）
+// 出力形式: 同じ停車パターンの列車は時刻のずれだけが違うので、パターンと始発時刻に分けて持つ
+//   patterns[]: { n: 列車名, r: 経路id, s: [[経路内の駅index, 着, 発, 停車=1/通過=0], ...] }（時刻は始発駅の発車からの分）
+//   trains[]:   [パターンの添字, 号数, 始発駅の発車時刻]（0:00 からの分・日本時間）
+// 実際の時刻表データに差し替える場合は、trains[] に { n, no, r, s }（s の時刻は 0:00 からの分）を直接書いてもよい
 import fs from 'node:fs';
 import { SERVICES, TYPES, LINE_SPEED, STATION_DWELL } from './services.config.mjs';
 
@@ -89,13 +90,26 @@ for (const tr of trains) {
   delete tr.dir;
 }
 
+const patterns = [];
+const patternIndex = new Map();
+const rows = trains.map((tr) => {
+  const dep = tr.s[0][2];
+  const s = tr.s.map(([idx, arr, d, stop]) => [idx, r1(arr - dep), r1(d - dep), stop]);
+  const key = JSON.stringify([tr.n, tr.r, s]);
+  if (!patternIndex.has(key)) {
+    patternIndex.set(key, patterns.length);
+    patterns.push({ n: tr.n, r: tr.r, s });
+  }
+  return [patternIndex.get(key), tr.no, dep];
+});
+
 const out = {
   note: '運転パターンから計算した推定時刻表です。実際の時刻・号数とは異なります。',
-  types: Object.fromEntries(Object.entries(TYPES).map(([k, v]) => [k, { color: v.color }])),
-  trains,
+  patterns,
+  trains: rows,
 };
 fs.writeFileSync('public/data/timetable.json', JSON.stringify(out));
-console.log(`wrote ${trains.length} trains (${(fs.statSync('public/data/timetable.json').size / 1024).toFixed(0)} KB)`);
+console.log(`wrote ${trains.length} trains / ${patterns.length} patterns (${(fs.statSync('public/data/timetable.json').size / 1024).toFixed(0)} KB)`);
 
 // 所要時間の確認用
 const route = (id) => network.routes.find((r) => r.id === id);

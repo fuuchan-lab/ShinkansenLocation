@@ -43,7 +43,7 @@ npm run build    # dist/ に出力
 | `network.json` | 路線形状・駅の距離程・直通経路 | `npm run data:network -- <N02のUTF-8フォルダ>` |
 | `airports.json` | 空港の位置 | `node scripts/build-airports.mjs <C28のUTF-8フォルダ>` |
 | `timetable.json` | 推定時刻表 | `npm run data:timetable` |
-| `area.json` / `mask.json` | 対象範囲（陸地を含む日本の EEZ）と範囲外のマスク | `node scripts/build-area.mjs <EEZ の GeoJSON>` |
+| `area.json` | 対象範囲（陸地を含む日本の EEZ）。範囲外を隠すマスクはブラウザでこれから作る | `node scripts/build-area.mjs <EEZ の GeoJSON>` |
 
 - 路線・駅: [国土数値情報 鉄道データ（N02）](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2024.html)。zip を展開した `UTF-8` フォルダを指定します。
 - 空港: [国土数値情報 空港データ（C28）](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html)
@@ -56,7 +56,7 @@ npm run build    # dist/ に出力
 2. 停車駅では、種別ごとの停車時間（分割・併合や折り返しの駅は長め）を足す
 3. 地図上では、時刻表の通過時刻の間を補間して位置を出す。発車直後と到着前は加減速のカーブにする
 
-実際の時刻表データを使う場合は、`timetable.json` を同じ形式で作れば、フロントエンドを変えずに差し替えられます。形式は `scripts/generate-timetable.mjs` の先頭に書いてあります。
+`timetable.json` は、停車パターン（58種類）と各列車の号数・発車時刻に分けて保存し、ブラウザで列車ごとの時刻に展開します（862本で約29KB）。実際の時刻表データを使う場合は、`trains` に列車ごとの時刻を直接書いても読み込めます。形式は `scripts/generate-timetable.mjs` の先頭に書いてあります。
 
 ## 飛行機・旅客船のデータ（Cloudflare Worker）
 
