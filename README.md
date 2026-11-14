@@ -63,11 +63,11 @@ npm run build    # dist/ に出力
 ブラウザから直接呼べる（CORS 対応の）無料の API がないため、`worker/` の Cloudflare Worker が中継します。どちらも結果を30秒キャッシュし、閲覧者が何人いても上流へのアクセスは30秒に1回です。
 
 **飛行機**（`/aircraft`）
-- [adsb.lol](https://adsb.lol)（ODbL）から日本周辺を半径250海里の円11個に分けて取得し、まとめて返す
+- [adsb.lol](https://adsb.lol)（ODbL）から日本周辺を半径250海里の円12個に分けて取得し、まとめて返す（同時に4件まで。半分以上失敗したときは直近の結果を返す）
 - 国内線・国際線の判定:
   - JAL・ANA・Peach・Jetstar Japan のように両方を飛ぶ会社の便だけ、[adsbdb](https://www.adsbdb.com) で経路を照会する
   - 外国の航空会社は国際線、国内専用の会社は国内線とする
-- 1回の実行で外部へ出すリクエストは最大44件（無料プランの上限50件）
+- 1回の実行で外部へ出すリクエストは最大46件（無料プランの上限50件）
 
 **旅客船**（`/ships`）
 - Durable Object が [aisstream.io](https://aisstream.io) に常時接続し、日本近海の AIS を受け取る
