@@ -1,3 +1,15 @@
-name = "shinkansen-aircraft"
+name = "shinkansen-location-live"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
+
+# 旅客船: AIS への接続を保つ Durable Object（無料プランは SQLite 版のみ）
+[[durable_objects.bindings]]
+name = "SHIPS"
+class_name = "ShipTracker"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ShipTracker"]
+
+# aisstream.io の API キーは secret で渡す: npx wrangler secret put AISSTREAM_API_KEY
+# ローカルでは worker/.dev.vars に AISSTREAM_API_KEY=... と書く（コミットしない）

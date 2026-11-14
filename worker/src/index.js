@@ -1,4 +1,6 @@
-// 日本周辺を飛行中の航空機を adsb.lol から集め、国内線・国際線を判定して返す Cloudflare Worker。
+// 日本周辺を飛行中の航空機と、旅客船の位置を返す Cloudflare Worker。
+// 航空機: adsb.lol から集め、国内線・国際線を判定する。
+// 旅客船: ships.js の Durable Object が aisstream.io の AIS データを集める。GET /ships -> { now, connected, ships: [...] }
 // GET /aircraft -> { now, ac: [[hex, callsign, lat, lon, 高度ft, 対地速度kt, 針路, 機種, 登録記号, 国際線=1/国内線=0, 位置の古さ秒, 出発, 到着, 到着地の緯度, 経度]] }
 //
 // 無料枠に収めるため:
@@ -28,17 +30,23 @@ const json = (body, status = 200, extra = {}) =>
     headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', ...extra },
   });
 
+export { ShipTracker } from './ships.js';
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname !== '/aircraft') return json({ error: 'not found' }, 404);
+    if (url.pathname !== '/aircraft' && url.pathname !== '/ships') return json({ error: 'not found' }, 404);
 
     const cache = caches.default;
-    const key = new Request(`${url.origin}/aircraft`);
+    const key = new Request(`${url.origin}${url.pathname}`);
     const hit = await cache.match(key);
     if (hit) return hit;
 
-    const res = json(await collect(cache, ctx), 200, { 'cache-control': `public, max-age=${CACHE_SECONDS}` });
+    const body = url.pathname === '/aircraft'
+      ? await collect(cache, ctx)
+      // 旅客船は Durable Object が AIS に接続して集めている
+      : await env.SHIPS.get(env.SHIPS.idFromName('japan')).fetch(request).then((r) => r.json());
+    const res = json(body, 200, { 'cache-control': `public, max-age=${CACHE_SECONDS}` });
     ctx.waitUntil(cache.put(key, res.clone()));
     return res;
   },
