@@ -4,7 +4,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import './style.css';
 import { buildRoutes, loadData, type Airport, type GeoJSONData, type Line, type Route, type Timetable, type Train } from './data';
-import { addIcons } from './icons';
+import { AIRCRAFT_API, aircraftAt, aircraftLabel, fetchAircraft, type Aircraft } from './aircraft';
+import { addIcons, PLANE_COLORS } from './icons';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -37,7 +38,8 @@ const style: StyleSpecification = {
       tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],
       tileSize: 256,
       maxzoom: 18,
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a> | 国土数値情報 | Natural Earth',
+      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a> | 国土数値情報 | Natural Earth'
+        + ' | 航空機: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>',
     },
   },
   layers: [
@@ -95,7 +97,7 @@ const hiddenLines = new Set<string>();
 interface StationEntry { train: Train; arr: number; dep: number; dir: 1 | -1; dest: string; first: boolean; last: boolean; line: string }
 const stationIndex = new Map<string, StationEntry[]>();
 
-type Sheet = { kind: 'train'; id: string } | { kind: 'station'; name: string; dir: 1 | -1 } | null;
+type Sheet = { kind: 'train'; id: string } | { kind: 'station'; name: string; dir: 1 | -1 } | { kind: 'aircraft'; hex: string } | null;
 let sheet: Sheet = null;
 let follow = false;
 let scrollToNow = false;
@@ -107,6 +109,26 @@ let updatedReal = 0;
 const corrections = new Map<string, number>();
 const shown = new Map<string, { km: number; pos: [number, number] }>();
 const CORRECTION_MS = 3000;
+
+// 飛行中の航空機（30秒ごとに取得し、その間は速度と針路で進める）
+let aircraft: Aircraft[] = [];
+const AIRCRAFT_INTERVAL_MS = 30_000;
+const showPlanes = { domestic: loadSetting('planes.domestic', true), international: loadSetting('planes.international', true) };
+function loadSetting(key: string, fallback: boolean): boolean {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === '1';
+  } catch {
+    return fallback;
+  }
+}
+function saveSetting(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // 保存できなくても表示には影響しない
+  }
+}
 
 // 駅に停車中の列車は、のりば（番線）のように線路と直角方向へ並べる。
 // 左側通行なので、下り・上りそれぞれ進行方向の左側に、到着順に詰めて並べる（推定）。
@@ -163,6 +185,26 @@ async function init() {
   addLayers();
   buildLineFilter();
   requestAnimationFrame(frame);
+  if (AIRCRAFT_API) startAircraftPolling();
+}
+
+function startAircraftPolling() {
+  let timer = 0;
+  const poll = async () => {
+    clearTimeout(timer);
+    try {
+      aircraft = await fetchAircraft(aircraft);
+      if (sheet?.kind === 'aircraft') renderSheet();
+    } catch (err) {
+      console.warn(err);
+    }
+    // 画面が見えていないときは取得しない
+    if (!document.hidden) timer = window.setTimeout(poll, AIRCRAFT_INTERVAL_MS);
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll();
+  });
+  poll();
 }
 
 function buildStationIndex() {
@@ -222,6 +264,7 @@ function addLayers() {
     },
   });
   map.addSource('trains', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource('aircraft', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
   // 日本以外を海の色で隠す
   map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': SEA, 'fill-antialias': false } });
@@ -267,6 +310,31 @@ function addLayers() {
     },
     paint: { 'text-color': '#222', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
   });
+  // 飛行機は列車の下に描く
+  map.addLayer({
+    id: 'aircraft', type: 'symbol', source: 'aircraft',
+    layout: {
+      'icon-image': ['case', ['get', 'intl'], 'plane-international', 'plane-domestic'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.45, 7, 0.65, 10, 0.9],
+      'icon-rotate': ['get', 'heading'],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'symbol-sort-key': ['get', 'alt'],
+      'text-field': ['step', ['zoom'], '', 7.5, ['get', 'label']],
+      'text-font': ['Noto Sans Regular'],
+      'text-size': 11,
+      'text-offset': [0, 1.4],
+      'text-anchor': 'top',
+      'text-optional': true,
+    },
+    paint: { 'text-color': '#5a4a00', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
+  });
+  map.addLayer({
+    id: 'aircraft-selected', type: 'circle', source: 'aircraft',
+    filter: ['==', ['get', 'hex'], ''],
+    paint: { 'circle-radius': 15, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#111', 'circle-stroke-width': 2.5 },
+  });
   map.addLayer({
     id: 'train-selected', type: 'circle', source: 'trains',
     filter: ['==', ['get', 'id'], ''],
@@ -310,18 +378,20 @@ function addLayers() {
     // 列車と駅のうち、タップした位置に最も近いもの
     const r = 14;
     const near = map
-      .queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['train-hit', 'station'] })
+      .queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['train-hit', 'station', 'aircraft'] })
       .map((f) => ({ f, d: map.project((f.geometry as { coordinates: [number, number] }).coordinates).dist(e.point) }))
       .sort((a, b) => a.d - b.d)[0];
     if (!near) {
       if (sheet) closeSheet();
     } else if (near.f.layer.id === 'station') {
       openStation(String(near.f.properties!.name));
+    } else if (near.f.layer.id === 'aircraft') {
+      openAircraft(String(near.f.properties!.hex));
     } else {
       openTrain(String(near.f.properties!.id));
     }
   });
-  for (const layer of ['train-hit', 'station']) {
+  for (const layer of ['train-hit', 'station', 'aircraft']) {
     map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
   }
@@ -344,6 +414,25 @@ function applyLineFilter() {
 function buildLineFilter() {
   const nav = $('line-filter');
   nav.innerHTML = '';
+  if (AIRCRAFT_API) {
+    for (const [key, label] of [['domestic', '国内線'], ['international', '国際線']] as const) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `chip plane ${showPlanes[key] ? 'on' : ''}`;
+      b.style.setProperty('--c', PLANE_COLORS[key]);
+      b.innerHTML = `<span class="plane-mark">✈</span>${label}`;
+      b.setAttribute('aria-pressed', String(showPlanes[key]));
+      b.addEventListener('click', () => {
+        showPlanes[key] = !showPlanes[key];
+        saveSetting(`planes.${key}`, showPlanes[key]);
+        b.classList.toggle('on', showPlanes[key]);
+        b.setAttribute('aria-pressed', String(showPlanes[key]));
+        draw(nowMinutes());
+      });
+      nav.appendChild(b);
+    }
+    nav.appendChild(Object.assign(document.createElement('span'), { className: 'chip-sep' }));
+  }
   for (const l of lines) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -361,6 +450,9 @@ function buildLineFilter() {
     });
     nav.appendChild(b);
   }
+  const place = () => document.documentElement.style.setProperty('--filter-bottom', `${Math.ceil(nav.getBoundingClientRect().bottom) + 8}px`);
+  place();
+  window.addEventListener('resize', place);
 }
 
 // ---- 位置の更新 ----
@@ -400,7 +492,7 @@ function update(now: number) {
   statesAt = now;
   updatedReal = performance.now();
 
-  $('clock-count').textContent = states.length ? `運行中 ${states.length}本` : '運行時間外';
+  $('clock-count').dataset.trains = states.length ? `運行中 ${states.length}本` : '運行時間外';
   $('clock').classList.toggle('sim', clock.base !== null);
   renderSheet();
 }
@@ -434,6 +526,7 @@ function draw(now: number) {
   });
   for (const id of slotShown.keys()) if (!ids.has(id)) slotShown.delete(id);
   (map.getSource('trains') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
+  drawAircraft();
   $('clock-time').textContent = formatTime(Math.floor(now));
 
   if (sheet?.kind === 'train' && follow) {
@@ -441,6 +534,22 @@ function draw(now: number) {
     // ズームなどのアニメーション中は邪魔しない
     if (p && !map.isMoving()) map.jumpTo({ center: p.pos });
   }
+}
+
+/** 飛行機は現在時刻の位置（時刻指定・早送りの影響を受けない） */
+function drawAircraft() {
+  const ms = Date.now();
+  const visible = aircraft.filter((a) => (a.intl ? showPlanes.international : showPlanes.domestic));
+  const features = visible.map((a) => ({
+    type: 'Feature' as const,
+    properties: { hex: a.hex, intl: a.intl, heading: a.heading ?? 0, alt: a.alt ?? 0, label: aircraftLabel(a) },
+    geometry: { type: 'Point' as const, coordinates: aircraftAt(a, ms) },
+  }));
+  (map.getSource('aircraft') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
+  const count = $('clock-count');
+  const planes = AIRCRAFT_API && visible.length ? ` ✈${visible.length}機` : '';
+  const base = count.dataset.trains ?? '';
+  if (count.textContent !== base + planes) count.textContent = base + planes;
 }
 
 /** 表示時刻や路線の表示を変えたときにすぐ反映する */
@@ -466,6 +575,13 @@ function openStation(name: string, dir: 1 | -1 = 1) {
   showSheet(f ? ((f.geometry as { coordinates: [number, number] }).coordinates) : undefined, 9);
 }
 
+function openAircraft(hex: string) {
+  sheet = { kind: 'aircraft', hex };
+  follow = false;
+  const a = aircraft.find((x) => x.hex === hex);
+  showSheet(a ? aircraftAt(a, Date.now()) : undefined, map.getZoom());
+}
+
 function closeSheet() {
   sheet = null;
   follow = false;
@@ -475,6 +591,7 @@ function closeSheet() {
 /** シートを描画し、対象がシートに隠れない位置に来るよう地図を動かす */
 function showSheet(center?: [number, number], minZoom = 8) {
   map.setFilter('train-selected', ['==', ['get', 'id'], sheet?.kind === 'train' ? sheet.id : '']);
+  map.setFilter('aircraft-selected', ['==', ['get', 'hex'], sheet?.kind === 'aircraft' ? sheet.hex : '']);
   renderSheet();
   const el = $('sheet');
   const desktop = matchMedia('(min-width: 768px)').matches;
@@ -490,9 +607,10 @@ function renderSheet() {
   let html = '';
   if (sheet?.kind === 'train') html = trainSheet(sheet.id);
   else if (sheet?.kind === 'station') html = stationSheet(sheet.name, sheet.dir);
+  else if (sheet?.kind === 'aircraft') html = aircraftSheet(sheet.hex);
   if (!html) {
-    // 列車が終着して表示対象がなくなった
-    if (sheet?.kind === 'train') sheet = null;
+    // 列車が終着した・飛行機が範囲外に出たなどで表示対象がなくなった
+    if (sheet?.kind === 'train' || sheet?.kind === 'aircraft') sheet = null;
     el.hidden = true;
     document.body.classList.remove('has-sheet');
     return;
@@ -620,6 +738,34 @@ function stationSheet(name: string, dir: 1 | -1): string {
     </div>
     <div class="timetable">${table || '<p class="small">発車する列車はありません。</p>'}</div>
     <p class="small">推定時刻表です。「運行中」の列車をタップすると現在位置を表示します。</p>`;
+}
+
+const COMPASS = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+
+function aircraftSheet(hex: string): string {
+  const a = aircraft.find((x) => x.hex === hex);
+  if (!a) return '';
+  const color = a.intl ? PLANE_COLORS.international : PLANE_COLORS.domestic;
+  const num = (x: number) => x.toLocaleString('ja-JP');
+  const rows: [string, string][] = [];
+  if (a.from && a.to) rows.push(['経路', `${a.from} → ${a.to}`]);
+  if (a.alt !== null) rows.push(['高度', `${num(Math.round(a.alt / 100) * 100)} ft（約 ${num(Math.round((a.alt * 0.3048) / 10) * 10)} m）`]);
+  if (a.gs !== null) rows.push(['対地速度', `${Math.round(a.gs)} kt（約 ${num(Math.round((a.gs * 1.852) / 10) * 10)} km/h）`]);
+  if (a.heading !== null) rows.push(['進行方向', `${Math.round(a.heading)}°（${COMPASS[Math.round(a.heading / 45) % 8]}）`]);
+  if (a.type) rows.push(['機種', a.type]);
+  if (a.reg) rows.push(['登録記号', a.reg]);
+  const age = Math.round((Date.now() - a.at) / 1000);
+  return `
+    <div class="sheet-head" style="--c:${color}">
+      <span class="plane-mark big">✈</span>
+      <h2>${aircraftLabel(a)}</h2>
+      <span class="badge-type">${a.intl ? '国際線' : '国内線'}</span>
+    </div>
+    <dl class="facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    <div class="actions">
+      <a href="https://adsb.lol/?icao=${a.hex}" target="_blank" rel="noopener">adsb.lol で詳しく見る ↗</a>
+    </div>
+    <p class="small">ADS-B の受信データ（約${age}秒前の位置から推定）。国内線・国際線は便名の経路から判定し、不明な場合は航空会社や登録国から推定しています。</p>`;
 }
 
 function bindSheet() {

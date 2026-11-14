@@ -75,6 +75,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .chip.on { opacity: 1; }
 .chip .swatch { width: 14px; height: 5px; border-radius: 3px; background: var(--c); }
+.plane-mark { color: var(--c); font-size: 14px; line-height: 1; -webkit-text-stroke: 0.6px rgba(58, 48, 0, 0.7); }
+.plane-mark.big { font-size: 22px; align-self: center; }
+.chip-sep { flex: none; width: 1px; margin: 4px 2px; background: rgba(0, 0, 0, 0.18); }
+.badge-type { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--c); color: #222; font-weight: 600; }
+
+/* ---- 飛行機の情報 ---- */
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 12px 0; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
 
 /* ---- 列車情報シート（スマホ: 下から） ---- */
 .sheet {
@@ -208,10 +217,11 @@ body.has-sheet .maplibregl-ctrl-bottom-right { display: none; }
 @media (min-width: 768px) {
   .topbar { left: 12px; right: auto; width: 420px; top: 12px; }
   .brand h1 { font-size: 18px; }
-  .line-filter { top: 76px; left: 12px; right: 12px; flex-wrap: wrap; overflow: visible; padding: 0; max-width: 760px; }
+  .line-filter { top: 76px; left: 12px; right: 12px; flex-wrap: wrap; overflow: visible; padding: 0; }
+  /* --filter-bottom: 路線ボタンの下端（折り返しで変わるので JS で設定） */
   .sheet {
-    top: 124px; left: 12px; right: auto; bottom: auto;
-    width: 380px; max-height: calc(100vh - 140px);
+    top: var(--filter-bottom, 124px); left: 12px; right: auto; bottom: auto;
+    width: 380px; max-height: calc(100vh - var(--filter-bottom, 124px) - 16px);
     border-radius: var(--radius); box-shadow: var(--shadow);
   }
   .sheet::before { display: none; }

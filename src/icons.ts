@@ -25,6 +25,14 @@ const train = (color: string) => `
   <path d="M9 2L16 32H2z" fill="${color}" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
 </svg>`;
 
+// 飛行機: 機首が上（進行方向）。国内線は黄色、国際線はピンク
+export const PLANE_COLORS = { domestic: '#ffc400', international: '#ff4fa3' };
+const plane = (color: string) => `
+<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24">
+  <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"
+    transform="translate(.5 0)" fill="${color}" stroke="#3a3000" stroke-opacity=".75" stroke-width="1" stroke-linejoin="round"/>
+</svg>`;
+
 async function svgImage(svg: string, scale: number): Promise<HTMLImageElement> {
   const w = Number(/width="(\d+)"/.exec(svg)![1]) * scale;
   const h = Number(/height="(\d+)"/.exec(svg)![1]) * scale;
@@ -34,10 +42,16 @@ async function svgImage(svg: string, scale: number): Promise<HTMLImageElement> {
   return img;
 }
 
-/** 駅・空港と、路線ごとの列車アイコン（train-<路線id>）を登録する */
+/** 駅・空港・飛行機と、路線ごとの列車アイコン（train-<路線id>）を登録する */
 export async function addIcons(map: MLMap, lines: { id: string; color: string }[]) {
   const ratio = 2;
-  const images: [string, string][] = [['station', STATION], ['airport', AIRPORT], ...lines.map((l): [string, string] => [`train-${l.id}`, train(l.color)])];
+  const images: [string, string][] = [
+    ['station', STATION],
+    ['airport', AIRPORT],
+    ['plane-domestic', plane(PLANE_COLORS.domestic)],
+    ['plane-international', plane(PLANE_COLORS.international)],
+    ...lines.map((l): [string, string] => [`train-${l.id}`, train(l.color)]),
+  ];
   await Promise.all(
     images.map(async ([name, svg]) => map.addImage(name, await svgImage(svg, ratio), { pixelRatio: ratio })),
   );

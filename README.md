@@ -17,6 +17,7 @@
 - 駅に停車中の列車は、のりば（番線）のように並べる（推定）。始発駅では発車8分前から、終着駅では到着後5分間表示する
 - 列車をタップすると、行先・次の停車駅・停車駅の時刻・推定速度を表示し、列車を追従する。各社の公式運行情報へのリンクも出す
 - 駅をタップすると、その駅の時刻表（下り・上り）を表示する。現在の時間帯を強調し、現在時刻の位置に線を引いて自動でスクロールする
+- 日本周辺を飛行中の飛行機を、国内線は黄色・国際線はピンクのアイコンで、機首を進行方向に向けて表示する。国内線・国際線それぞれ表示を切り替えられる
 - 路線ごとに表示を切り替える
 - 表示時刻を指定し、×10・×60 で早送りする（夜間の確認用）
 
@@ -54,6 +55,26 @@ npm run build    # dist/ に出力
 
 実際の時刻表データを使う場合は、`timetable.json` を同じ形式で作れば、フロントエンドを変えずに差し替えられます。形式は `scripts/generate-timetable.mjs` の先頭に書いてあります。
 
+## 飛行機のデータ（Cloudflare Worker）
+
+ブラウザから直接呼べる（CORS 対応の）無料の航空機 API がないため、`worker/` の Cloudflare Worker が中継します。
+
+- [adsb.lol](https://adsb.lol)（ODbL）から日本周辺を半径250海里の円11個に分けて取得し、まとめて返す
+- 国内線・国際線の判定:
+  - JAL・ANA・Peach・Jetstar Japan のように両方を飛ぶ会社の便だけ、[adsbdb](https://www.adsbdb.com) で経路を照会する
+  - 外国の航空会社は国際線、国内専用の会社は国内線とする
+- 無料枠に収めるため、結果を30秒キャッシュし、経路の照会結果もまとめてキャッシュする。1回の実行で外部へ出すリクエストは最大44件（上限50件）
+
+```sh
+cd worker
+npm install
+node test/run-local.mjs   # http://localhost:8787/aircraft（Node.js だけで動く簡易版）
+npx wrangler login        # 初回のみ
+npm run deploy
+```
+
+デプロイ後に表示される URL を、リポジトリ直下の `.env.production` の `VITE_AIRCRAFT_API` に書きます。未設定の場合、飛行機のレイヤーは表示されません。
+
 ## 構成
 
 ```
@@ -62,7 +83,9 @@ src/       フロントエンド（Vite + TypeScript + MapLibre GL JS）
   data.ts      データの型・経路ジオメトリ
   simulate.ts  時刻から列車位置を計算
   icons.ts     駅・空港アイコン
+  aircraft.ts  飛行機の取得・位置の推定
   main.ts      地図・UI
+worker/    飛行機データを中継する Cloudflare Worker
 ```
 
 ## 出典・クレジット
