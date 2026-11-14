@@ -1,5 +1,6 @@
 // network.json / timetable.json の型と、経路ジオメトリの組み立て
 import type { GeoJSONSourceSpecification } from 'maplibre-gl';
+import type { AreaFeature } from './area';
 
 export type GeoJSONData = GeoJSONSourceSpecification['data'];
 
@@ -87,14 +88,15 @@ export function pointAt(route: Route, km: number): { pos: LngLat; bearing: numbe
 
 export interface Airport { name: string; lng: number; lat: number }
 
-export async function loadData(): Promise<{ network: Network; timetable: Timetable; airports: Airport[]; mask: GeoJSONData }> {
+export async function loadData(): Promise<{ network: Network; timetable: Timetable; airports: Airport[]; mask: GeoJSONData; area: AreaFeature }> {
   const base = import.meta.env.BASE_URL;
   const get = <T>(file: string) => fetch(`${base}data/${file}`).then((r) => r.json() as Promise<T>);
-  const [network, timetable, airports, mask] = await Promise.all([
+  const [network, timetable, airports, mask, area] = await Promise.all([
     get<Network>('network.json'),
     get<Timetable>('timetable.json'),
     get<{ airports: Airport[] }>('airports.json'),
     get<GeoJSONData>('mask.json'),
+    get<AreaFeature>('area.json'),
   ]);
-  return { network, timetable, airports: airports.airports, mask };
+  return { network, timetable, airports: airports.airports, mask, area };
 }

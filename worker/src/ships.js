@@ -2,8 +2,8 @@
 // 位置と船種は別のメッセージで届く（船種は約6分おき）ため、接続を保ったまま貯めておく。
 
 const AIS_URL = 'wss://stream.aisstream.io/v0/stream';
-// [[南西の緯度, 経度], [北東の緯度, 経度]]
-const BOX = [[23.5, 122.5], [46.0, 149.0]];
+// [[南西の緯度, 経度], [北東の緯度, 経度]]: 日本の排他的経済水域を囲む範囲（細かい判定はフロントエンドで行う）
+const BOX = [[17.0, 122.0], [48.0, 158.0]];
 const MESSAGE_TYPES = ['PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport', 'ShipStaticData', 'StaticDataReport'];
 const STALE_MS = 15 * 60 * 1000;
 const isPassenger = (type) => type >= 60 && type <= 69;
@@ -81,6 +81,15 @@ export class ShipStore {
 
 const round = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
 
+const decoder = new TextDecoder();
+/** メッセージを文字列にする（文字列・ArrayBuffer・型付き配列・Blob のどれでも） */
+async function textOf(data) {
+  if (typeof data === 'string') return data;
+  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) return decoder.decode(data);
+  if (typeof data?.arrayBuffer === 'function') return decoder.decode(await data.arrayBuffer());
+  return String(data);
+}
+
 /** Cloudflare Workers では fetch の Upgrade で接続する（new WebSocket では外向きに繋がらない） */
 async function open(url) {
   if (typeof WebSocketPair === 'undefined') {
@@ -105,10 +114,9 @@ export async function connect(apiKey, store, onClose) {
   store.stats.opened = true;
   // 接続後すぐ（3秒以内）に購読内容を送る
   ws.send(JSON.stringify({ APIKey: apiKey, BoundingBoxes: [BOX], FilterMessageTypes: MESSAGE_TYPES }));
-  const decoder = new TextDecoder();
-  ws.addEventListener('message', (e) => {
+  ws.addEventListener('message', async (e) => {
     try {
-      store.handle(JSON.parse(typeof e.data === 'string' ? e.data : decoder.decode(e.data)));
+      store.handle(JSON.parse(await textOf(e.data)));
     } catch (err) {
       store.stats.lastError = `parse: ${err}`;
     }
@@ -158,31 +166,7 @@ export class ShipTracker {
     }
   }
 
-  /** 一時的な診断: 世界全体で数秒だけ購読し、届く件数と日本近海の件数を数える */
-  async probe() {
-    const ws = await open(AIS_URL);
-    ws.send(JSON.stringify({ APIKey: this.env.AISSTREAM_API_KEY, BoundingBoxes: [[[-90, -180], [90, 180]]], FilterMessageTypes: ['PositionReport'] }));
-    const decoder = new TextDecoder();
-    const out = { total: 0, japan: 0, sample: null, raw: '' };
-    ws.addEventListener('message', (e) => {
-      const text = typeof e.data === 'string' ? e.data : decoder.decode(e.data);
-      if (!out.raw) out.raw = text.slice(0, 300);
-      out.total++;
-      try {
-        const m = JSON.parse(text).MetaData;
-        if (m && m.latitude > 23 && m.latitude < 47 && m.longitude > 122 && m.longitude < 150) {
-          out.japan++;
-          out.sample ??= m;
-        }
-      } catch {}
-    });
-    await new Promise((r) => setTimeout(r, 8000));
-    ws.close();
-    return Response.json(out);
-  }
-
-  async fetch(request) {
-    if (new URL(request.url).pathname === '/ships-probe') return this.probe();
+  async fetch() {
     this.lastRequest = Date.now();
     await this.ensureConnected();
     if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + ALARM_MS);

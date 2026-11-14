@@ -5,6 +5,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import './style.css';
 import { buildRoutes, loadData, type Airport, type GeoJSONData, type Line, type Route, type Timetable, type Train } from './data';
 import { aircraftAt, aircraftLabel, fetchAircraft, LIVE_API, type Aircraft } from './aircraft';
+import { inArea, setArea, type AreaFeature } from './area';
 import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
 import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
@@ -29,6 +30,7 @@ function officialFor(line: string, station: string) {
 }
 
 const SEA = '#bed2ff'; // 地理院タイル（淡色地図）の海の色
+const OUTSIDE = '#ffffff'; // 対象範囲（日本の排他的経済水域）の外
 
 const style: StyleSpecification = {
   version: 8,
@@ -39,8 +41,10 @@ const style: StyleSpecification = {
       tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],
       tileSize: 256,
       maxzoom: 18,
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a> | 国土数値情報 | Natural Earth'
-        + ' | 航空機: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>',
+      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a> | 国土数値情報'
+        + ' | EEZ: <a href="https://www.marineregions.org" target="_blank" rel="noopener">Marine Regions</a> (CC BY 4.0)'
+        + ' | 航空機: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>'
+        + ' | 船: <a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>',
     },
   },
   layers: [
@@ -60,7 +64,8 @@ const map = new maplibregl.Map({
   style,
   bounds: JAPAN,
   fitBoundsOptions: { padding: { top: 120, bottom: 20, left: 10, right: 10 } },
-  maxBounds: [[114, 16], [158, 52]],
+  // 対象範囲（EEZ: 東経122〜158度・北緯17〜48度）に少し余白を足した範囲
+  maxBounds: [[114, 12], [166, 53]],
   attributionControl: { compact: true },
   dragRotate: false,
   pitchWithRotate: false,
@@ -69,7 +74,17 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 if (import.meta.env.DEV) Object.assign(window, { __map: map });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: false } }), 'bottom-right');
+// 現在地: 起動時に取得して少し拡大した位置に寄せ、その後も動きに合わせて表示する
+const geolocate = new maplibregl.GeolocateControl({
+  positionOptions: { enableHighAccuracy: true },
+  trackUserLocation: true,
+  fitBoundsOptions: { maxZoom: 9 },
+});
+map.addControl(geolocate, 'bottom-right');
+geolocate.once('geolocate', (e: { coords: GeolocationCoordinates }) => {
+  // 対象範囲の外（海外など）にいるときは日本全体の表示に戻す
+  if (!inArea([e.coords.longitude, e.coords.latitude])) map.fitBounds(JAPAN, { padding: 40 });
+});
 
 // ---- 時刻（現在時刻 or 指定時刻からの再生） ----
 const clock = { base: null as number | null, realStart: 0, speed: 1 };
@@ -89,6 +104,7 @@ const serviceTime = (now: number) => (now < 180 ? now + 1440 : now);
 let lines: Line[] = [];
 let airports: Airport[] = [];
 let mask: GeoJSONData;
+let area: AreaFeature;
 let routes = new Map<string, Route>();
 let timetable: Timetable;
 const lineColor = new Map<string, string>();
@@ -185,6 +201,8 @@ async function init() {
   timetable = data.timetable;
   airports = data.airports;
   mask = data.mask;
+  area = data.area;
+  setArea(area);
   routes = buildRoutes(data.network);
   for (const l of lines) lineColor.set(l.id, l.color);
   buildStationIndex();
@@ -193,13 +211,17 @@ async function init() {
   addLayers();
   buildLineFilter();
   requestAnimationFrame(frame);
+  // 出典表記は長いので最初はたたむ（ⓘで開ける）
+  document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+  // 位置情報が使えれば現在地に寄せる（許可されなければ日本全体のまま）
+  if ('geolocation' in navigator) geolocate.trigger();
   if (LIVE_API) {
     startPolling(async () => {
-      aircraft = await fetchAircraft(aircraft);
+      aircraft = (await fetchAircraft(aircraft)).filter((a) => inArea([a.lon, a.lat]));
       if (sheet?.kind === 'aircraft') renderSheet();
     });
     startPolling(async () => {
-      ships = await fetchShips(ships);
+      ships = (await fetchShips(ships)).filter((s) => inArea([s.lon, s.lat]));
       if (sheet?.kind === 'ship') renderSheet();
     });
   }
@@ -246,6 +268,7 @@ function buildStationIndex() {
 
 function addLayers() {
   map.addSource('mask', { type: 'geojson', data: mask });
+  map.addSource('area', { type: 'geojson', data: area as unknown as GeoJSONData });
   map.addSource('lines', {
     type: 'geojson',
     data: {
@@ -284,7 +307,13 @@ function addLayers() {
   map.addSource('ships', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
   // 日本以外を海の色で隠す
-  map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': SEA, 'fill-antialias': false } });
+  // 対象範囲（日本の排他的経済水域）の外は白く隠し、境界を破線で示す
+  map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': OUTSIDE, 'fill-antialias': false } });
+  map.addLayer({
+    id: 'eez-line', type: 'line', source: 'area',
+    layout: { 'line-join': 'round' },
+    paint: { 'line-color': '#3d6fb6', 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1, 8, 2], 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
+  });
   map.addLayer({
     id: 'line-casing', type: 'line', source: 'lines',
     layout: { 'line-join': 'round', 'line-cap': 'round' },

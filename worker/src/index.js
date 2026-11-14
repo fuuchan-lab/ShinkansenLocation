@@ -5,19 +5,19 @@
 //
 // 無料枠に収めるため:
 // - 結果は 30 秒キャッシュし、上流へのアクセスは 30 秒に 1 回にする
-// - 1 回の実行の外部リクエストは 50 件まで（取得 11 + やり直し 11 + 経路照会 20 + キャッシュ 2）
+// - 1 回の実行の外部リクエストは 50 件まで（取得 12 + やり直し 12 + 経路照会 20 + キャッシュ 2）
 
 const CACHE_SECONDS = 30;
 const ROUTE_LOOKUPS_PER_RUN = 20;
 const ROUTE_CACHE_URL = 'https://cache.internal/routes-v3';
 
-// 半径 250 海里の円で、沖縄から北海道までと周辺の空域を覆う
+// 半径 250 海里の円で、沖縄から北海道まで・伊豆小笠原と周辺の空域を覆う
 const CIRCLES = [
   [25.0, 124.5], [27.5, 128.5], [31.5, 130.5], [35.0, 131.0], [34.0, 135.0], [36.0, 138.5],
-  [39.5, 141.0], [43.5, 143.0], [40.0, 137.0], [36.5, 144.0], [31.0, 140.5],
+  [39.5, 141.0], [43.5, 143.0], [40.0, 137.0], [36.5, 144.0], [31.0, 140.5], [26.5, 142.5],
 ];
-// 与那国島の西側（台湾上空）は含めない
-const BBOX = { w: 122.5, s: 23.5, e: 152, n: 48 };
+// 日本の排他的経済水域を囲む範囲（細かい判定はフロントエンドで行う）
+const BBOX = { w: 122, s: 17, e: 158, n: 48 };
 
 // 国内線だけの会社 / 国際線だけの会社 / 両方飛ぶ会社（経路を照会する）
 const DOMESTIC = new Set(['ADO', 'SNJ', 'SFJ', 'IBX', 'FDA', 'JTA', 'RAC', 'JAC', 'NTH', 'ORC', 'AHX', 'JLJ', 'AKX', 'TOK', 'SKY']);
@@ -35,7 +35,6 @@ export { ShipTracker } from './ships.js';
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === '/ships-probe') return env.SHIPS.get(env.SHIPS.idFromName('japan')).fetch(request);
     if (url.pathname !== '/aircraft' && url.pathname !== '/ships') return json({ error: 'not found' }, 404);
 
     const cache = caches.default;
@@ -53,7 +52,7 @@ export default {
   },
 };
 
-// 失敗したら 1 回だけやり直す（取得 11 + やり直し 11 + 経路照会 20 + キャッシュ 2 = 最大 44 件）
+// 失敗したら 1 回だけやり直す（取得 12 + やり直し 12 + 経路照会 20 + キャッシュ 2 = 最大 46 件）
 async function fetchCircle(lat, lon, retry = true) {
   try {
     const r = await fetch(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`, {
