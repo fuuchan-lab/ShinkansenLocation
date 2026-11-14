@@ -23,11 +23,13 @@ export interface Aircraft {
   at: number;
   from: string;
   to: string;
+  /** 便名（NH1098 など。経路が分かった便のみ） */
+  flight: string;
 }
 
 type Row = [
   string, string, number, number, number | null, number | null, number | null, string, string, 0 | 1, number,
-  string, string, number | null, number | null,
+  string, string, number | null, number | null, string?,
 ];
 
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -45,13 +47,13 @@ export async function fetchAircraft(prev: Aircraft[]): Promise<Aircraft[]> {
   if (!res.ok) throw new Error(`aircraft ${res.status}`);
   const data = (await res.json()) as { now: number; ac: Row[] };
   const before = new Map(prev.map((a) => [a.hex, a]));
-  return data.ac.map(([hex, callsign, lat, lon, alt, gs, track, type, reg, intl, seen, from, to, destLat, destLon]) => {
+  return data.ac.map(([hex, callsign, lat, lon, alt, gs, track, type, reg, intl, seen, from, to, destLat, destLon, flight = '']) => {
     let heading = track;
     const p = before.get(hex);
     if (heading === null && p && movedKm([p.lon, p.lat], [lon, lat]) > 0.5) heading = bearing([p.lon, p.lat], [lon, lat]);
     if (heading === null && destLat !== null && destLon !== null) heading = bearing([lon, lat], [destLon, destLat]);
     if (heading === null && p) heading = p.heading;
-    return { hex, callsign, lat, lon, alt, gs, heading, type, reg, intl: intl === 1, at: data.now - seen * 1000, from, to };
+    return { hex, callsign, lat, lon, alt, gs, heading, type, reg, intl: intl === 1, at: data.now - seen * 1000, from, to, flight };
   });
 }
 
@@ -65,4 +67,5 @@ export function deadReckon(lon: number, lat: number, knots: number | null, headi
 
 export const aircraftAt = (a: Aircraft, ms: number): LngLat => deadReckon(a.lon, a.lat, a.gs, a.heading, ms - a.at);
 
-export const aircraftLabel = (a: Aircraft) => a.callsign || a.reg || a.hex.toUpperCase();
+/** 地図に出す名前: 便名（NH1098）→ コールサイン（ANA1098）→ 登録記号 の順 */
+export const aircraftLabel = (a: Aircraft) => a.flight || a.callsign || a.reg || a.hex.toUpperCase();

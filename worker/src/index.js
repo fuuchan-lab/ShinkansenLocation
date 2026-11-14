@@ -1,7 +1,7 @@
 // 日本周辺を飛行中の航空機と、旅客船の位置を返す Cloudflare Worker。
 // 航空機: adsb.lol から集め、国内線・国際線を判定する。
 // 旅客船: ships.js の Durable Object が aisstream.io の AIS データを集める。GET /ships -> { now, connected, ships: [...] }
-// GET /aircraft -> { now, ac: [[hex, callsign, lat, lon, 高度ft, 対地速度kt, 針路, 機種, 登録記号, 国際線=1/国内線=0, 位置の古さ秒, 出発, 到着, 到着地の緯度, 経度]] }
+// GET /aircraft -> { now, ac: [[hex, callsign, lat, lon, 高度ft, 対地速度kt, 針路, 機種, 登録記号, 国際線=1/国内線=0, 位置の古さ秒, 出発, 到着, 到着地の緯度, 経度, 便名(NH1098 など)]] }
 //
 // 無料枠に収めるため:
 // - 結果は 30 秒キャッシュし、上流へのアクセスは 30 秒に 1 回にする
@@ -9,7 +9,7 @@
 
 const CACHE_SECONDS = 30;
 const ROUTE_LOOKUPS_PER_RUN = 20;
-const ROUTE_CACHE_URL = 'https://cache.internal/routes-v2';
+const ROUTE_CACHE_URL = 'https://cache.internal/routes-v3';
 
 // 半径 250 海里の円で、沖縄から北海道までと周辺の空域を覆う
 const CIRCLES = [
@@ -78,7 +78,7 @@ async function collect(cache, ctx) {
     if (!prev || (a.seen_pos ?? 0) < (prev.seen_pos ?? 0)) byHex.set(a.hex, a);
   }
 
-  // 経路のキャッシュ（便名 -> [出発IATA, 到着IATA, 国際線?, 到着地の緯度, 経度] / null=不明）
+  // 経路のキャッシュ（コールサイン -> [出発IATA, 到着IATA, 国際線?, 到着地の緯度, 経度, 便名] / null=不明）
   const routes = (await cache.match(ROUTE_CACHE_URL).then((r) => (r ? r.json() : {})).catch(() => ({})));
   const pending = [];
   for (const a of byHex.values()) {
@@ -93,7 +93,10 @@ async function collect(cache, ctx) {
           const f = d?.response?.flightroute;
           if (!f?.origin || !f?.destination) return [cs, null];
           const intl = f.origin.country_iso_name !== 'JP' || f.destination.country_iso_name !== 'JP';
-          return [cs, [f.origin.iata_code, f.destination.iata_code, intl ? 1 : 0, round(f.destination.latitude, 3), round(f.destination.longitude, 3)]];
+          return [cs, [
+            f.origin.iata_code, f.destination.iata_code, intl ? 1 : 0,
+            round(f.destination.latitude, 3), round(f.destination.longitude, 3), f.callsign_iata ?? '',
+          ]];
         })
         .catch(() => [cs, undefined]),
     ),
@@ -116,7 +119,7 @@ async function collect(cache, ctx) {
       typeof a.alt_baro === 'number' ? a.alt_baro : a.alt_geom ?? null,
       a.gs ?? null, a.track ?? a.true_heading ?? null, a.t ?? '', a.r ?? '',
       route ? route[2] : classify(cs, a.r ?? ''),
-      round(a.seen_pos ?? 0, 1), route?.[0] ?? '', route?.[1] ?? '', route?.[3] ?? null, route?.[4] ?? null,
+      round(a.seen_pos ?? 0, 1), route?.[0] ?? '', route?.[1] ?? '', route?.[3] ?? null, route?.[4] ?? null, route?.[5] ?? '',
     ];
   });
   return { now: Date.now(), ac };

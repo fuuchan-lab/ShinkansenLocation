@@ -337,14 +337,7 @@ function addLayers() {
       'icon-rotation-alignment': 'map',
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
-      'text-field': ['step', ['zoom'], '', 8, ['get', 'label']],
-      'text-font': ['Noto Sans Regular'],
-      'text-size': 11,
-      'text-offset': [0, 1.5],
-      'text-anchor': 'top',
-      'text-optional': true,
     },
-    paint: { 'text-color': '#005f8f', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
   });
   map.addLayer({
     id: 'ship-selected', type: 'circle', source: 'ships',
@@ -361,15 +354,24 @@ function addLayers() {
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       'symbol-sort-key': ['get', 'alt'],
-      'text-field': ['step', ['zoom'], '', 7.5, ['get', 'label']],
-      'text-font': ['Noto Sans Regular'],
-      'text-size': 11,
-      'text-offset': [0, 1.4],
-      'text-anchor': 'top',
-      'text-optional': true,
     },
-    paint: { 'text-color': '#5a4a00', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
   });
+  // 拡大したら、新幹線と同じようにアイコンの上へ便名・船名を出す
+  const liveLabel = (source: string, color: maplibregl.ExpressionSpecification | string) =>
+    map.addLayer({
+      id: `${source}-label`, type: 'symbol', source, minzoom: 7,
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 12,
+        'text-offset': [0, -1.6],
+        'text-anchor': 'bottom',
+        'text-allow-overlap': false,
+      },
+      paint: { 'text-color': color, 'text-halo-color': '#fff', 'text-halo-width': 2 },
+    });
+  liveLabel('ships', SHIP_COLOR);
+  liveLabel('aircraft', ['case', ['get', 'intl'], '#d6247e', '#8a6a00']);
   map.addLayer({
     id: 'aircraft-selected', type: 'circle', source: 'aircraft',
     filter: ['==', ['get', 'hex'], ''],
@@ -824,6 +826,7 @@ function aircraftSheet(hex: string): string {
   const color = a.intl ? PLANE_COLORS.international : PLANE_COLORS.domestic;
   const num = (x: number) => x.toLocaleString('ja-JP');
   const rows: [string, string][] = [];
+  if (a.flight && a.callsign) rows.push(['コールサイン', a.callsign]);
   if (a.from && a.to) rows.push(['経路', `${a.from} → ${a.to}`]);
   if (a.alt !== null) rows.push(['高度', `${num(Math.round(a.alt / 100) * 100)} ft（約 ${num(Math.round((a.alt * 0.3048) / 10) * 10)} m）`]);
   if (a.gs !== null) rows.push(['対地速度', `${Math.round(a.gs)} kt（約 ${num(Math.round((a.gs * 1.852) / 10) * 10)} km/h）`]);
