@@ -13,8 +13,14 @@ export class ShipStore {
   positions = new Map();
   /** MMSI -> 船名・船種など（旅客船以外も一時的に持つ） */
   statics = new Map();
+  /** 状態確認用: 受信したメッセージの種類ごとの件数など */
+  stats = { messages: 0, byType: {}, lastError: '' };
 
   handle(msg) {
+    this.stats.messages++;
+    if (msg.error) this.stats.lastError = String(msg.error);
+    const kind = msg.MessageType ?? 'unknown';
+    this.stats.byType[kind] = (this.stats.byType[kind] ?? 0) + 1;
     const mmsi = msg.MetaData?.MMSI;
     if (!mmsi) return;
     const type = msg.MessageType;
@@ -75,22 +81,46 @@ export class ShipStore {
 
 const round = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
 
-export function connect(apiKey, store, onClose) {
-  const ws = new WebSocket(AIS_URL);
-  ws.binaryType = 'arraybuffer';
-  ws.addEventListener('open', () => {
-    ws.send(JSON.stringify({ APIKey: apiKey, BoundingBoxes: [BOX], FilterMessageTypes: MESSAGE_TYPES }));
-  });
+/** Cloudflare Workers では fetch の Upgrade で接続する（new WebSocket では外向きに繋がらない） */
+async function open(url) {
+  if (typeof WebSocketPair === 'undefined') {
+    // Node.js（test/run-local.mjs）
+    const ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve, { once: true });
+      ws.addEventListener('error', reject, { once: true });
+    });
+    return ws;
+  }
+  const res = await fetch(url.replace(/^wss:/, 'https:'), { headers: { Upgrade: 'websocket' } });
+  if (!res.webSocket) throw new Error(`upgrade failed: ${res.status}`);
+  res.webSocket.accept();
+  return res.webSocket;
+}
+
+export async function connect(apiKey, store, onClose) {
+  store.stats.opened = false;
+  const ws = await open(AIS_URL);
+  store.stats.opened = true;
+  // 接続後すぐ（3秒以内）に購読内容を送る
+  ws.send(JSON.stringify({ APIKey: apiKey, BoundingBoxes: [BOX], FilterMessageTypes: MESSAGE_TYPES }));
   const decoder = new TextDecoder();
   ws.addEventListener('message', (e) => {
     try {
       store.handle(JSON.parse(typeof e.data === 'string' ? e.data : decoder.decode(e.data)));
-    } catch {
-      // 壊れたメッセージは無視
+    } catch (err) {
+      store.stats.lastError = `parse: ${err}`;
     }
   });
-  ws.addEventListener('close', onClose);
-  ws.addEventListener('error', onClose);
+  ws.addEventListener('close', (e) => {
+    store.stats.lastClose = `${e.code} ${e.reason ?? ''}`.trim();
+    onClose();
+  });
+  ws.addEventListener('error', (e) => {
+    store.stats.lastError = `ws: ${e.message ?? e.type}`;
+    onClose();
+  });
   return ws;
 }
 
@@ -112,19 +142,58 @@ export class ShipTracker {
     });
   }
 
-  ensureConnected() {
-    if (!this.env.AISSTREAM_API_KEY) return;
+  async ensureConnected() {
+    if (!this.env.AISSTREAM_API_KEY || this.connecting) return;
     if (this.ws && this.ws.readyState <= 1) return;
-    this.ws = connect(this.env.AISSTREAM_API_KEY, this.store, () => {
+    this.connecting = true;
+    try {
+      this.ws = await connect(this.env.AISSTREAM_API_KEY, this.store, () => {
+        this.ws = null;
+      });
+    } catch (err) {
+      this.store.stats.lastError = `connect: ${err}`;
       this.ws = null;
-    });
+    } finally {
+      this.connecting = false;
+    }
   }
 
-  async fetch() {
+  /** 一時的な診断: 世界全体で数秒だけ購読し、届く件数と日本近海の件数を数える */
+  async probe() {
+    const ws = await open(AIS_URL);
+    ws.send(JSON.stringify({ APIKey: this.env.AISSTREAM_API_KEY, BoundingBoxes: [[[-90, -180], [90, 180]]], FilterMessageTypes: ['PositionReport'] }));
+    const decoder = new TextDecoder();
+    const out = { total: 0, japan: 0, sample: null, raw: '' };
+    ws.addEventListener('message', (e) => {
+      const text = typeof e.data === 'string' ? e.data : decoder.decode(e.data);
+      if (!out.raw) out.raw = text.slice(0, 300);
+      out.total++;
+      try {
+        const m = JSON.parse(text).MetaData;
+        if (m && m.latitude > 23 && m.latitude < 47 && m.longitude > 122 && m.longitude < 150) {
+          out.japan++;
+          out.sample ??= m;
+        }
+      } catch {}
+    });
+    await new Promise((r) => setTimeout(r, 8000));
+    ws.close();
+    return Response.json(out);
+  }
+
+  async fetch(request) {
+    if (new URL(request.url).pathname === '/ships-probe') return this.probe();
     this.lastRequest = Date.now();
-    this.ensureConnected();
+    await this.ensureConnected();
     if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + ALARM_MS);
-    return Response.json({ now: Date.now(), connected: !!this.ws, ships: this.store.passengers() });
+    const ships = this.store.passengers();
+    return Response.json({
+      now: Date.now(),
+      connected: !!this.ws,
+      // 状態確認用（映らないときの切り分け）
+      stats: { ...this.store.stats, positions: this.store.positions.size, statics: this.store.statics.size, readyState: this.ws?.readyState ?? null },
+      ships,
+    });
   }
 
   async alarm() {
@@ -134,7 +203,7 @@ export class ShipTracker {
       this.ws = null;
       return;
     }
-    this.ensureConnected();
+    await this.ensureConnected();
     await this.state.storage.setAlarm(Date.now() + ALARM_MS);
   }
 }

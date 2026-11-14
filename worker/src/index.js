@@ -35,6 +35,7 @@ export { ShipTracker } from './ships.js';
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === '/ships-probe') return env.SHIPS.get(env.SHIPS.idFromName('japan')).fetch(request);
     if (url.pathname !== '/aircraft' && url.pathname !== '/ships') return json({ error: 'not found' }, 404);
 
     const cache = caches.default;
