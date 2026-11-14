@@ -19,6 +19,12 @@ const AIRPORT = `
   </g>
 </svg>`;
 
+// 列車: 進行方向（上）を向いた細い三角形
+const train = (color: string) => `
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="34" viewBox="0 0 18 34">
+  <path d="M9 2L16 32H2z" fill="${color}" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>`;
+
 async function svgImage(svg: string, scale: number): Promise<HTMLImageElement> {
   const w = Number(/width="(\d+)"/.exec(svg)![1]) * scale;
   const h = Number(/height="(\d+)"/.exec(svg)![1]) * scale;
@@ -28,9 +34,11 @@ async function svgImage(svg: string, scale: number): Promise<HTMLImageElement> {
   return img;
 }
 
-export async function addIcons(map: MLMap) {
+/** 駅・空港と、路線ごとの列車アイコン（train-<路線id>）を登録する */
+export async function addIcons(map: MLMap, lines: { id: string; color: string }[]) {
   const ratio = 2;
-  const [station, airport] = await Promise.all([svgImage(STATION, ratio), svgImage(AIRPORT, ratio)]);
-  map.addImage('station', station, { pixelRatio: ratio });
-  map.addImage('airport', airport, { pixelRatio: ratio });
+  const images: [string, string][] = [['station', STATION], ['airport', AIRPORT], ...lines.map((l): [string, string] => [`train-${l.id}`, train(l.color)])];
+  await Promise.all(
+    images.map(async ([name, svg]) => map.addImage(name, await svgImage(svg, ratio), { pixelRatio: ratio })),
+  );
 }

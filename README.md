@@ -10,10 +10,13 @@
 
 ## 機能
 
-- 各路線をテーマカラーの太線で表示する
+- 各路線をテーマカラーの太線で表示する。地図は日本（沖縄・北方領土を含む）だけを表示する
 - 新幹線の駅と空港をアイコンで表示する
-- 列車を種別ごとに色分けし、0.5秒ごとに位置を更新する
+- 列車は、走っている路線の色の細い三角形で、進行方向を向けて表示する
+- 列車の位置は時刻表から1分ごとに推定し直す。その間は推定速度で線路上を動かす
+- 駅に停車中の列車は、のりば（番線）のように並べる（推定）。始発駅では発車8分前から、終着駅では到着後5分間表示する
 - 列車をタップすると、行先・次の停車駅・停車駅の時刻・推定速度を表示し、列車を追従する。各社の公式運行情報へのリンクも出す
+- 駅をタップすると、その駅の時刻表（下り・上り）を表示する。現在の時間帯を強調し、現在時刻の位置に線を引いて自動でスクロールする
 - 路線ごとに表示を切り替える
 - 表示時刻を指定し、×10・×60 で早送りする（夜間の確認用）
 
@@ -36,9 +39,11 @@ npm run build    # dist/ に出力
 | `network.json` | 路線形状・駅の距離程・直通経路 | `npm run data:network -- <N02のUTF-8フォルダ>` |
 | `airports.json` | 空港の位置 | `node scripts/build-airports.mjs <C28のUTF-8フォルダ>` |
 | `timetable.json` | 推定時刻表 | `npm run data:timetable` |
+| `mask.json` | 日本以外を隠すマスク | `node scripts/build-mask.mjs <ne_10m_admin_0_countries.geojson>` |
 
 - 路線・駅: [国土数値情報 鉄道データ（N02）](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2024.html)。zip を展開した `UTF-8` フォルダを指定します。
 - 空港: [国土数値情報 空港データ（C28）](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html)
+- 国の形: [Natural Earth](https://www.naturalearthdata.com/)（Admin 0 – Countries, 1:10m）
 - 運転パターン（停車駅・本数・速度）は `scripts/services.config.mjs` で調整します。路線の駅順と色は `scripts/lines.config.mjs` にあります。
 
 ### 推定の方法
@@ -64,4 +69,5 @@ src/       フロントエンド（Vite + TypeScript + MapLibre GL JS）
 
 - 地図: [国土地理院 地理院タイル（淡色地図）](https://maps.gsi.go.jp/development/ichiran.html)
 - 路線・駅・空港: 「国土数値情報（鉄道データ・空港データ）」（国土交通省）を加工して作成
+- 国の形: Natural Earth（パブリックドメイン）
 - 地図ラベルのフォント: [OpenFreeMap](https://openfreemap.org/)

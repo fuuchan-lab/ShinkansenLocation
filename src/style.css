@@ -98,10 +98,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 body.has-sheet .maplibregl-ctrl-bottom-right { display: none; }
 
-.train-head { display: flex; align-items: baseline; gap: 8px; padding-right: 36px; }
-.train-head .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--c); align-self: center; }
-.train-head h2 { margin: 0; font-size: 20px; }
-.train-head .dest { color: var(--muted); font-size: 14px; }
+.sheet-head { display: flex; align-items: baseline; gap: 8px; padding-right: 36px; }
+.sheet-head .arrow {
+  width: 12px; height: 22px; align-self: center; background: var(--c);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.sheet-head .st-icon {
+  width: 24px; height: 24px; align-self: center; border-radius: 6px; background: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M5 17.5h13.5c3 0 5-1.1 5-2.4 0-1.2-1.9-2-4.7-2.9l-4.3-1.5c-1.2-.4-2.3-.6-3.5-.6H5z' fill='%23fff'/%3E%3Crect x='5' y='19.5' width='18' height='1.6' rx='.8' fill='%23fff'/%3E%3C/svg%3E");
+}
+.sheet-head h2 { margin: 0; font-size: 20px; }
+.sheet-head .sub { color: var(--muted); font-size: 14px; }
 .status { margin: 10px 0 2px; font-size: 14px; }
 .status .speed { margin-left: 8px; color: var(--muted); font-size: 12px; }
 .next { margin: 0 0 10px; font-size: 14px; color: var(--accent); }
@@ -122,6 +129,53 @@ body.has-sheet .maplibregl-ctrl-bottom-right { display: none; }
 .stops li.now { font-weight: 700; }
 .stops li.now::before { background: var(--accent); border-color: var(--accent); }
 .stops .tm { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.stops .st { border: none; background: none; padding: 0; text-align: left; font-weight: inherit; color: inherit; text-decoration: underline dotted #b8bec6; text-underline-offset: 3px; }
+
+/* ---- 駅の時刻表 ---- */
+.sticky {
+  position: sticky; top: -16px; z-index: 2;
+  margin: -16px -16px 0; padding: 16px 16px 2px;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.sticky .tabs { margin-bottom: 8px; }
+.hour .h span { position: sticky; top: calc(var(--head-h, 0px) - 8px); display: block; }
+.line-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.line-chip { font-size: 12px; padding: 2px 8px 2px 6px; border-radius: 999px; border-left: 5px solid var(--c); background: #f3f5f7; }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tab {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); text-align: left;
+}
+.tab b { font-size: 14px; }
+.tab span { font-size: 11px; color: var(--muted); }
+.tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tab.on span { color: #c9d3e0; }
+.timetable { border-top: none; }
+.hour { display: flex; border-bottom: 1px solid var(--line); }
+.hour .h {
+  flex: none; width: 44px; padding: 8px 0; text-align: center;
+  font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; background: #f3f5f7; color: #4a5260;
+}
+.hour .h small { font-size: 10px; font-weight: 400; margin-left: 1px; }
+.hour ul { flex: 1; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.hour.cur { background: #fff8e1; }
+.hour.cur .h { background: #f5a200; color: #fff; }
+.hour li.passed { opacity: 0.4; }
+.dep {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border: none; background: none; text-align: left; font-size: 14px;
+}
+.dep:disabled { cursor: default; }
+.dep .t { width: 2ch; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 16px; }
+.dep .nm { padding-left: 6px; border-left: 4px solid var(--c); white-space: nowrap; }
+.dep .dest { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dep .dest small { font-size: 10px; padding: 0 4px; border: 1px solid #cfd4da; border-radius: 4px; }
+.dep .live { font-size: 11px; color: #fff; background: #12a150; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+.now-line { position: relative; height: 0; border-top: 2px solid #e53935; margin: 4px 0; }
+.now-line span {
+  position: absolute; right: 6px; top: -10px; font-size: 11px; font-weight: 700; color: #fff;
+  background: #e53935; padding: 1px 8px; border-radius: 999px;
+}
 .small { font-size: 11px; color: var(--muted); }
 
 /* ---- ポップオーバー（時刻指定・説明） ---- */
