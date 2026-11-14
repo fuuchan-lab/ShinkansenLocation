@@ -5,11 +5,14 @@
 //
 // 無料枠に収めるため:
 // - 結果は 30 秒キャッシュし、上流へのアクセスは 30 秒に 1 回にする
-// - 1 回の実行の外部リクエストは 50 件まで（取得 12 + やり直し 12 + 経路照会 20 + キャッシュ 2）
+// - 1 回の実行の外部リクエストは 50 件まで
+//   （取得 12 + やり直し 12 + 経路照会 16 + キャッシュの読み書き 最大 6 = 46 件）
 
 const CACHE_SECONDS = 30;
-const ROUTE_LOOKUPS_PER_RUN = 20;
+const ROUTE_LOOKUPS_PER_RUN = 16;
 const ROUTE_CACHE_URL = 'https://cache.internal/routes-v3';
+// 直近にうまく取れた航空機の結果（上流が不調なときに使う）
+const LAST_GOOD_URL = 'https://cache.internal/aircraft-last-good';
 
 // 半径 250 海里の円で、沖縄から北海道まで・伊豆小笠原と周辺の空域を覆う
 const CIRCLES = [
@@ -42,17 +45,28 @@ export default {
     const hit = await cache.match(key);
     if (hit) return hit;
 
-    const body = url.pathname === '/aircraft'
-      ? await collect(cache, ctx)
+    let maxAge = CACHE_SECONDS;
+    let body;
+    if (url.pathname === '/aircraft') {
+      body = await collect(cache, ctx);
+      if (body) {
+        ctx.waitUntil(cache.put(LAST_GOOD_URL, json(body, 200, { 'cache-control': 'public, max-age=300' })));
+      } else {
+        // 上流の取得が半分以上失敗したときは、直近にうまく取れた結果を返す（すぐ取り直せるよう短くキャッシュ）
+        body = (await cache.match(LAST_GOOD_URL).then((r) => r?.json()).catch(() => null)) ?? { now: Date.now(), ac: [] };
+        maxAge = 10;
+      }
+    } else {
       // 旅客船は Durable Object が AIS に接続して集めている
-      : await env.SHIPS.get(env.SHIPS.idFromName('japan')).fetch(request).then((r) => r.json());
-    const res = json(body, 200, { 'cache-control': `public, max-age=${CACHE_SECONDS}` });
+      body = await env.SHIPS.get(env.SHIPS.idFromName('japan')).fetch(request).then((r) => r.json());
+    }
+    const res = json(body, 200, { 'cache-control': `public, max-age=${maxAge}` });
     ctx.waitUntil(cache.put(key, res.clone()));
     return res;
   },
 };
 
-// 失敗したら 1 回だけやり直す（取得 12 + やり直し 12 + 経路照会 20 + キャッシュ 2 = 最大 46 件）
+// 失敗したら 1 回だけやり直す。失敗なら null
 async function fetchCircle(lat, lon, retry = true) {
   try {
     const r = await fetch(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`, {
@@ -61,15 +75,32 @@ async function fetchCircle(lat, lon, retry = true) {
     if (!r.ok) throw new Error(String(r.status));
     return (await r.json()).ac ?? [];
   } catch {
-    return retry ? fetchCircle(lat, lon, false) : [];
+    return retry ? fetchCircle(lat, lon, false) : null;
   }
 }
 
+/** 同時に limit 件までに抑えて順に実行する（上流に一度に大量に送らない） */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: limit }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]);
+      }
+    }),
+  );
+  return out;
+}
+
+/** 半分以上の円で取得に失敗したら null */
 async function collect(cache, ctx) {
-  const lists = await Promise.all(CIRCLES.map(([lat, lon]) => fetchCircle(lat, lon)));
+  const lists = await mapLimit(CIRCLES, 4, ([lat, lon]) => fetchCircle(lat, lon));
+  if (lists.filter((l) => l === null).length > CIRCLES.length / 2) return null;
 
   const byHex = new Map();
-  for (const a of lists.flat()) {
+  for (const a of lists.flat().filter(Boolean)) {
     if (a.lat == null || a.lon == null || a.alt_baro === 'ground') continue;
     if (a.lon < BBOX.w || a.lon > BBOX.e || a.lat < BBOX.s || a.lat > BBOX.n) continue;
     if ((a.seen_pos ?? 0) > 60) continue;
