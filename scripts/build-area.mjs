@@ -2,8 +2,10 @@
 // 使い方: node scripts/build-area.mjs <Marine Regions の EEZ GeoJSON>
 //   取得例: https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature
 //           &typeName=MarineRegions:eez&outputFormat=application/json&propertyName=mrgid,geoname,the_geom
-//           &cql_filter=mrgid%20IN%20(8487,48950,48954,48955)
+//           &cql_filter=mrgid%20IN%20(8487,48950,48954,48955,21796)
 //   8487: 日本の EEZ / 48950: 北方領土 / 48954: 尖閣諸島 / 48955: 竹島（日本が主張する区域）
+//   21796: 日韓共同開発区域（日韓の中間線より日本側にあり、海上保安庁の領海等概念図では EEZ に含まれる）
+//   参考: https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html（境界未画定の海域は地理的中間線で図示）
 // 出力: public/data/area.json
 import fs from 'node:fs';
 import * as turf from '@turf/turf';
