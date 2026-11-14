@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="description" content="日本の全新幹線の現在位置を、時刻表から推定して地図に表示します。" />
+    <title>新幹線ロケーション</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚄</text></svg>" />
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <h1>新幹線ロケーション</h1>
+        <span class="badge">推定</span>
+      </div>
+      <button id="clock" class="clock" type="button" aria-label="表示時刻を変更">
+        <span id="clock-time">--:--</span>
+        <span id="clock-count" class="count"></span>
+      </button>
+      <button id="info-btn" class="icon-btn" type="button" aria-label="このアプリについて">i</button>
+    </header>
+
+    <nav id="line-filter" class="line-filter" aria-label="路線の表示切替"></nav>
+
+    <aside id="sheet" class="sheet" hidden>
+      <button id="sheet-close" class="sheet-close" type="button" aria-label="閉じる">×</button>
+      <div id="sheet-body"></div>
+    </aside>
+
+    <div id="time-panel" class="popover" hidden>
+      <h2>表示時刻</h2>
+      <label class="row">
+        <span>時刻</span>
+        <input id="time-input" type="time" step="60" />
+      </label>
+      <div class="row speed" role="group" aria-label="再生速度">
+        <span>速度</span>
+        <button type="button" data-speed="1" class="on">×1</button>
+        <button type="button" data-speed="10">×10</button>
+        <button type="button" data-speed="60">×60</button>
+      </div>
+      <button id="time-now" type="button" class="primary">現在時刻に戻す</button>
+    </div>
+
+    <div id="info-panel" class="popover info" hidden>
+      <h2>このアプリについて</h2>
+      <p>列車の位置は、運転パターンから作った<strong>推定時刻表</strong>をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。</p>
+      <p>実際の運行状況は各社の公式情報で確認してください。</p>
+      <ul class="links">
+        <li><a href="https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html" target="_blank" rel="noopener">JR東海（東海道新幹線）</a></li>
+        <li><a href="https://trafficinfo.westjr.co.jp/sanyo.html" target="_blank" rel="noopener">JR西日本（山陽・北陸新幹線）</a></li>
+        <li><a href="https://traininfo.jreast.co.jp/train_info/shinkansen.aspx" target="_blank" rel="noopener">JR東日本（東北・上越・北陸・山形・秋田新幹線）</a></li>
+        <li><a href="https://www3.jrhokkaido.co.jp/webunkou/" target="_blank" rel="noopener">JR北海道（北海道新幹線）</a></li>
+        <li><a href="https://www.jrkyushu.co.jp/trains/info/" target="_blank" rel="noopener">JR九州（九州・西九州新幹線）</a></li>
+      </ul>
+      <p class="small">路線・空港データ: 国土数値情報（鉄道データ・空港データ）国土交通省 を加工して作成。地図: 国土地理院。</p>
+      <button id="info-close" type="button" class="primary">閉じる</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

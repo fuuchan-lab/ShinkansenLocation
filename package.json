@@ -1,0 +1,20 @@
+{
+  "name": "shinkansen-location",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "data:network": "node scripts/build-network.mjs",
+    "data:timetable": "node scripts/generate-timetable.mjs"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}
