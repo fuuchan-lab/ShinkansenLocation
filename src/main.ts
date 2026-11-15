@@ -3,30 +3,33 @@ import type { GeoJSONSource, StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import './style.css';
-import { buildRoutes, loadData, type Airport, type GeoJSONData, type Line, type Route, type Timetable, type Train } from './data';
+import { buildRoutes, distKm, loadData, type Airport, type GeoJSONData, type Line, type Route, type Timetable, type Train } from './data';
 import { aircraftAt, aircraftLabel, fetchAircraft, LIVE_API, type Aircraft } from './aircraft';
 import { inArea, setArea, type AreaFeature } from './area';
 import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
 import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
+import { airportCode } from './names-en';
+import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
+import { GOOGLE_CLIENT_ID, isFav, onUserChange, preloadGoogle, refresh as refreshUser, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const OFFICIAL: Record<string, { label: string; url: string }> = {
-  jrc: { label: 'JR東海 運行情報', url: 'https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html' },
-  jrw: { label: 'JR西日本 運行情報', url: 'https://trafficinfo.westjr.co.jp/sanyo.html' },
-  jre: { label: 'JR東日本 運行情報', url: 'https://traininfo.jreast.co.jp/train_info/shinkansen.aspx' },
-  jrh: { label: 'JR北海道 運行情報', url: 'https://www3.jrhokkaido.co.jp/webunkou/' },
-  jrk: { label: 'JR九州 運行情報', url: 'https://www.jrkyushu.co.jp/trains/info/' },
+const OFFICIAL = {
+  jrc: 'https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html',
+  jrw: 'https://trafficinfo.westjr.co.jp/sanyo.html',
+  jre: 'https://traininfo.jreast.co.jp/train_info/shinkansen.aspx',
+  jrh: 'https://www3.jrhokkaido.co.jp/webunkou/',
+  jrk: 'https://www.jrkyushu.co.jp/trains/info/',
 };
 const HOKURIKU_WEST = new Set(['糸魚川', '黒部宇奈月温泉', '富山', '新高岡', '金沢', '小松', '加賀温泉', '芦原温泉', '福井', '越前たけふ', '敦賀']);
-function officialFor(line: string, station: string) {
-  if (line === 'tokaido') return OFFICIAL.jrc;
-  if (line === 'sanyo') return OFFICIAL.jrw;
-  if (line === 'kyushu' || line === 'nishikyushu') return OFFICIAL.jrk;
-  if (line === 'hokkaido') return OFFICIAL.jrh;
-  if (line === 'hokuriku' && HOKURIKU_WEST.has(station)) return OFFICIAL.jrw;
-  return OFFICIAL.jre;
+function officialFor(line: string, station: string): { label: string; url: string } {
+  const key: keyof typeof OFFICIAL = line === 'tokaido' ? 'jrc'
+    : line === 'sanyo' || (line === 'hokuriku' && HOKURIKU_WEST.has(station)) ? 'jrw'
+    : line === 'kyushu' || line === 'nishikyushu' ? 'jrk'
+    : line === 'hokkaido' ? 'jrh'
+    : 'jre';
+  return { label: t().official[key], url: OFFICIAL[key] };
 }
 
 const SEA = '#bed2ff'; // 地理院タイル（淡色地図）の海の色
@@ -41,10 +44,11 @@ const style: StyleSpecification = {
       tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],
       tileSize: 256,
       maxzoom: 18,
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a> | 国土数値情報'
+      // 言語を切り替えても変わらないので、日本語・英語のどちらでも分かる表記にする
+      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 GSI Japan</a> | 国土数値情報 MLIT'
         + ' | EEZ: <a href="https://www.marineregions.org" target="_blank" rel="noopener">Marine Regions</a> (CC BY 4.0)'
-        + ' | 航空機: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>'
-        + ' | 船: <a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>',
+        + ' | ✈ <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL), <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>'
+        + ' | ⛴ <a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>',
     },
   },
   layers: [
@@ -119,6 +123,7 @@ type Sheet =
   | { kind: 'station'; name: string; dir: 1 | -1 }
   | { kind: 'aircraft'; hex: string }
   | { kind: 'ship'; mmsi: number }
+  | { kind: 'airport'; name: string; intl: boolean }
   | null;
 let sheet: Sheet = null;
 let follow = false;
@@ -153,6 +158,12 @@ function saveSetting(key: string, value: boolean) {
     // 保存できなくても表示には影響しない
   }
 }
+
+// 登録した（トラッキング中の）もの。飛行機は便名・コールサイン・機体のどれで登録しても一致させる
+/** 登録に使うキー: 登録済みならそのキー、未登録なら 便名 → コールサイン → 機体（hex） */
+const aircraftKey = (a: Aircraft) => [a.flight, a.callsign, a.hex].find((k) => k && isFav('aircraft', k)) ?? (a.flight || a.callsign || a.hex);
+const aircraftFav = (a: Aircraft) => isFav('aircraft', aircraftKey(a));
+const shipFav = (s: Ship) => isFav('ship', String(s.mmsi));
 
 // 駅に停車中の列車は、のりば（番線）のように線路と直角方向へ並べる。
 // 左側通行なので、下り・上りそれぞれ進行方向の左側に、到着順に詰めて並べる（推定）。
@@ -216,14 +227,17 @@ async function init() {
   document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
   // 位置情報が使えれば現在地に寄せる（許可されなければ日本全体のまま）
   if ('geolocation' in navigator) geolocate.trigger();
+  setupUser();
   if (LIVE_API) {
     startPolling(async () => {
       aircraft = (await fetchAircraft(aircraft)).filter((a) => inArea([a.lon, a.lat]));
-      if (sheet?.kind === 'aircraft') renderSheet();
+      if (sheet?.kind === 'aircraft' || sheet?.kind === 'airport') renderSheet();
+      renderMyPanel();
     });
     startPolling(async () => {
       ships = (await fetchShips(ships)).filter((s) => inArea([s.lon, s.lat]));
       if (sheet?.kind === 'ship') renderSheet();
+      renderMyPanel();
     });
   }
 }
@@ -267,6 +281,16 @@ function buildStationIndex() {
   for (const list of stationIndex.values()) list.sort((a, b) => a.dep - b.dep);
 }
 
+// 登録した（トラッキング中の）ものは縁取りの太いアイコン（icons.ts の「-fav」）にする
+const FAV: maplibregl.ExpressionSpecification = ['==', ['get', 'fav'], true];
+const FAV_SUFFIX: maplibregl.ExpressionSpecification = ['case', FAV, '-fav', ''];
+
+const TAPPABLE = ['train-hit', 'station', 'airport', 'aircraft', 'ships'];
+const AIRPORT_LABEL: maplibregl.ExpressionSpecification = ['format',
+  ['get', 'title'], {},
+  ['case', ['==', ['get', 'code'], ''], '', ['concat', '\n', ['get', 'code']]], { 'font-scale': 0.9 },
+];
+
 function addLayers() {
   map.addSource('mask', { type: 'geojson', data: mask });
   map.addSource('area', { type: 'geojson', data: area as unknown as GeoJSONData });
@@ -277,7 +301,6 @@ function addLayers() {
       features: lines.map((l) => ({ type: 'Feature', properties: { id: l.id, color: l.color }, geometry: { type: 'LineString', coordinates: l.coords } })),
     },
   });
-  const stationMap = new Map<string, { name: string; lng: number; lat: number; lines: string[] }>();
   for (const l of lines) {
     for (const s of l.stations) {
       const st = stationMap.get(s.name) ?? { name: s.name, lng: s.lng, lat: s.lat, lines: [] };
@@ -285,24 +308,10 @@ function addLayers() {
       stationMap.set(s.name, st);
     }
   }
-  map.addSource('stations', {
-    type: 'geojson',
-    data: {
-      type: 'FeatureCollection',
-      features: [...stationMap.values()].map((s) => ({
-        type: 'Feature',
-        properties: { name: s.name, lines: `,${s.lines.join(',')},`, major: s.lines.length > 1 ? 1 : 0 },
-        geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
-      })),
-    },
-  });
-  map.addSource('airports', {
-    type: 'geojson',
-    data: {
-      type: 'FeatureCollection',
-      features: airports.map((a) => ({ type: 'Feature', properties: { name: a.name }, geometry: { type: 'Point', coordinates: [a.lng, a.lat] } })),
-    },
-  });
+  map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  drawStations();
+  map.addSource('airports', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  drawAirports();
   map.addSource('trains', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('aircraft', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('ships', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -330,7 +339,11 @@ function addLayers() {
       'icon-image': 'airport',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.65, 10, 1],
       'icon-allow-overlap': true,
-      'text-field': ['step', ['zoom'], '', 7, ['get', 'name']],
+      // 駅名と同じタイミングで出す: 定期便のある空港は主要駅と同じ 6.5、そのほかの飛行場は 7.5 から。
+      // 空港名の下に改行して 3 文字の空港コード（HND など）
+      'text-field': ['step', ['zoom'], '',
+        6.5, ['case', ['==', ['get', 'code'], ''], '', AIRPORT_LABEL],
+        7.5, AIRPORT_LABEL],
       'text-font': ['Noto Sans Regular'],
       'text-size': 11,
       'text-offset': [0, 1.2],
@@ -340,14 +353,16 @@ function addLayers() {
     paint: { 'text-color': '#4a5568', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
   });
   map.addLayer({
-    id: 'station', type: 'symbol', source: 'stations', minzoom: 6,
+    id: 'station', type: 'symbol', source: 'stations',
     layout: {
-      'icon-image': 'station',
+      // お気に入りの駅は縮小しても出す
+      'icon-image': ['step', ['zoom'], ['case', FAV, 'station-fav', ''], 6, ['case', FAV, 'station-fav', 'station']],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 6, ['case', ['==', ['get', 'major'], 1], 0.6, 0.45], 10, 0.9],
       'icon-allow-overlap': true,
-      'symbol-sort-key': ['-', 1, ['get', 'major']],
-      // 主要駅（路線の接続駅）は早めに、その他の駅はズームしてから駅名を出す
-      'text-field': ['step', ['zoom'], '', 6.5, ['case', ['==', ['get', 'major'], 1], ['get', 'name'], ''], 7.5, ['get', 'name']],
+      'symbol-sort-key': ['case', FAV, -1, ['-', 1, ['get', 'major']]],
+      // 主要駅（路線の接続駅）とお気に入りの駅は早めに、その他の駅はズームしてから駅名を出す
+      'text-field': ['step', ['zoom'], ['case', FAV, ['get', 'title'], ''],
+        6.5, ['case', ['any', FAV, ['==', ['get', 'major'], 1]], ['get', 'title'], ''], 7.5, ['get', 'title']],
       'text-font': ['Noto Sans Regular'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 7, 11, 11, 14],
       'text-offset': [0, 1.3],
@@ -360,7 +375,7 @@ function addLayers() {
   map.addLayer({
     id: 'ships', type: 'symbol', source: 'ships',
     layout: {
-      'icon-image': 'ship',
+      'icon-image': ['case', FAV, 'ship-fav', 'ship'],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.45, 7, 0.65, 10, 0.95],
       'icon-rotate': ['get', 'heading'],
       'icon-rotation-alignment': 'map',
@@ -376,7 +391,7 @@ function addLayers() {
   map.addLayer({
     id: 'aircraft', type: 'symbol', source: 'aircraft',
     layout: {
-      'icon-image': ['case', ['get', 'intl'], 'plane-international', 'plane-domestic'],
+      'icon-image': ['concat', ['case', ['get', 'intl'], 'plane-international', 'plane-domestic'], FAV_SUFFIX],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.45, 7, 0.65, 10, 0.9],
       'icon-rotate': ['get', 'heading'],
       'icon-rotation-alignment': 'map',
@@ -385,12 +400,13 @@ function addLayers() {
       'symbol-sort-key': ['get', 'alt'],
     },
   });
-  // 拡大したら、アイコンの上へ列車名・便名・船名を出す
+  // 拡大したら、アイコンの上へ列車名・便名・船名を出す（トラッキング中のものは縮小しても出す）
   const label = (source: string, color: maplibregl.ExpressionSpecification | string) =>
     map.addLayer({
-      id: `${source}-label`, type: 'symbol', source, minzoom: 7,
+      id: `${source}-label`, type: 'symbol', source,
       layout: {
-        'text-field': ['get', 'label'],
+        'text-field': ['step', ['zoom'], ['case', FAV, ['get', 'label'], ''], 7, ['get', 'label']],
+        'symbol-sort-key': ['case', FAV, 0, 1],
         'text-font': ['Noto Sans Regular'],
         'text-size': 12,
         'text-offset': [0, -1.6],
@@ -419,7 +435,7 @@ function addLayers() {
   map.addLayer({
     id: 'train', type: 'symbol', source: 'trains',
     layout: {
-      'icon-image': ['concat', 'train-', ['get', 'line']],
+      'icon-image': ['concat', 'train-', ['get', 'line'], FAV_SUFFIX],
       'icon-size': ['interpolate', ['linear'], ['zoom'], ...ICON_SCALE.flat()],
       'icon-rotate': ['get', 'bearing'],
       'icon-rotation-alignment': 'map',
@@ -435,16 +451,18 @@ function addLayers() {
   });
 
   map.on('click', (e) => {
-    // 列車と駅のうち、タップした位置に最も近いもの
+    // 列車・駅・空港・飛行機・船のうち、タップした位置に最も近いもの
     const r = 14;
     const near = map
-      .queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['train-hit', 'station', 'aircraft', 'ships'] })
+      .queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: TAPPABLE })
       .map((f) => ({ f, d: map.project((f.geometry as { coordinates: [number, number] }).coordinates).dist(e.point) }))
       .sort((a, b) => a.d - b.d)[0];
     if (!near) {
       if (sheet) closeSheet();
     } else if (near.f.layer.id === 'station') {
       openStation(String(near.f.properties!.name));
+    } else if (near.f.layer.id === 'airport') {
+      openAirport(String(near.f.properties!.name));
     } else if (near.f.layer.id === 'aircraft') {
       openAircraft(String(near.f.properties!.hex));
     } else if (near.f.layer.id === 'ships') {
@@ -453,7 +471,7 @@ function addLayers() {
       openTrain(String(near.f.properties!.id));
     }
   });
-  for (const layer of ['train-hit', 'station', 'aircraft', 'ships']) {
+  for (const layer of TAPPABLE) {
     map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
   }
@@ -463,6 +481,25 @@ function addLayers() {
       renderSheet();
     }
   });
+}
+
+const stationMap = new Map<string, { name: string; lng: number; lat: number; lines: string[] }>();
+/** 駅（お気に入りの駅は縁取りを太くするので、登録を変えたら描き直す） */
+function drawStations() {
+  setData('stations', [...stationMap.values()].map((s) => ({
+    type: 'Feature',
+    properties: { name: s.name, title: station(s.name), lines: `,${s.lines.join(',')},`, major: s.lines.length > 1 ? 1 : 0, fav: isFav('station', s.name) },
+    geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+  })));
+}
+
+/** 空港（言語を切り替えたら描き直す） */
+function drawAirports() {
+  setData('airports', airports.map((a) => ({
+    type: 'Feature',
+    properties: { name: a.name, title: airportName(a.name), code: airportCode(a.name) },
+    geometry: { type: 'Point', coordinates: [a.lng, a.lat] },
+  })));
 }
 
 function applyLineFilter() {
@@ -481,7 +518,7 @@ function buildLineFilter() {
     ship.type = 'button';
     ship.className = `chip ${showShips ? 'on' : ''}`;
     ship.style.setProperty('--c', SHIP_COLOR);
-    ship.innerHTML = '<span class="ship-mark"></span>旅客船';
+    ship.innerHTML = `<span class="ship-mark"></span>${t().ships}`;
     ship.setAttribute('aria-pressed', String(showShips));
     ship.addEventListener('click', () => {
       showShips = !showShips;
@@ -490,7 +527,7 @@ function buildLineFilter() {
       ship.setAttribute('aria-pressed', String(showShips));
       drawLive();
     });
-    for (const [key, label] of [['domestic', '国内線'], ['international', '国際線']] as const) {
+    for (const [key, label] of [['domestic', t().domestic], ['international', t().international]] as const) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `chip plane ${showPlanes[key] ? 'on' : ''}`;
@@ -512,10 +549,11 @@ function buildLineFilter() {
   for (const l of lines) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'chip on';
+    const visible = !hiddenLines.has(l.id);
+    b.className = `chip ${visible ? 'on' : ''}`;
     b.style.setProperty('--c', l.color);
-    b.innerHTML = `<span class="swatch"></span>${l.name.replace('新幹線', '')}`;
-    b.setAttribute('aria-pressed', 'true');
+    b.innerHTML = `<span class="swatch"></span>${lineShort(l)}`;
+    b.setAttribute('aria-pressed', String(visible));
     b.addEventListener('click', () => {
       if (hiddenLines.has(l.id)) hiddenLines.delete(l.id);
       else hiddenLines.add(l.id);
@@ -526,10 +564,11 @@ function buildLineFilter() {
     });
     nav.appendChild(b);
   }
-  const place = () => document.documentElement.style.setProperty('--filter-bottom', `${Math.ceil(nav.getBoundingClientRect().bottom) + 8}px`);
-  place();
-  window.addEventListener('resize', place);
+  placeLineFilter();
 }
+const placeLineFilter = () =>
+  document.documentElement.style.setProperty('--filter-bottom', `${Math.ceil($('line-filter').getBoundingClientRect().bottom) + 8}px`);
+window.addEventListener('resize', placeLineFilter);
 
 // ---- 位置の更新 ----
 let lastMinute = -1;
@@ -577,9 +616,10 @@ function update(now: number) {
   statesAt = now;
   updatedReal = performance.now();
 
-  $('clock-count').dataset.trains = states.length ? `運行中 ${states.length}本` : '運行時間外';
+  $('clock-count').dataset.trains = states.length ? t().running(states.length) : t().noService;
   $('clock').classList.toggle('sim', clock.base !== null);
   renderSheet();
+  renderMyPanel();
 }
 
 /** 前回の推定から推定速度で進めた位置を描画する */
@@ -605,7 +645,7 @@ function draw(now: number) {
     const at = map.unproject([p.x - Math.cos(b) * d, p.y - Math.sin(b) * d]);
     return {
       type: 'Feature',
-      properties: { id: st.id, line: st.line, color: lineColor.get(st.line) ?? '#333', label: `${st.train.n}${st.train.no}`, bearing },
+      properties: { id: st.id, line: st.line, color: lineColor.get(st.line) ?? '#333', label: trainLabel(st.train.n, st.train.no), bearing, fav: isFav('train', st.id) },
       geometry: { type: 'Point', coordinates: [at.lng, at.lat] },
     };
   });
@@ -628,14 +668,14 @@ function drawLive() {
   const visible = aircraft.filter((a) => (a.intl ? showPlanes.international : showPlanes.domestic));
   setData('aircraft', visible.map((a) => ({
     type: 'Feature',
-    properties: { hex: a.hex, intl: a.intl, heading: a.heading ?? 0, alt: a.alt ?? 0, label: aircraftLabel(a) },
+    properties: { hex: a.hex, intl: a.intl, heading: a.heading ?? 0, alt: a.alt ?? 0, label: aircraftLabel(a), fav: aircraftFav(a) },
     geometry: { type: 'Point', coordinates: aircraftAt(a, ms) },
   })));
 
   const shipList = showShips ? ships : [];
   setData('ships', shipList.map((s) => ({
     type: 'Feature',
-    properties: { mmsi: s.mmsi, heading: s.heading ?? 0, label: shipLabel(s) },
+    properties: { mmsi: s.mmsi, heading: s.heading ?? 0, label: shipLabel(s), fav: shipFav(s) },
     geometry: { type: 'Point', coordinates: shipAt(s, ms) },
   })));
 
@@ -682,6 +722,17 @@ function openShip(mmsi: number) {
   showSheet(s ? shipAt(s, Date.now()) : undefined, map.getZoom());
 }
 
+function openAirport(name: string) {
+  // 国内線の便があれば国内線のタブ、なければ国際線のタブから
+  const code = airportCode(name);
+  const intl = !!code && !airportFlights(code).some((f) => !f.a.intl) && airportFlights(code).some((f) => f.a.intl);
+  sheet = { kind: 'airport', name, intl };
+  follow = false;
+  scrollToNow = true;
+  const ap = airports.find((a) => a.name === name);
+  showSheet(ap ? [ap.lng, ap.lat] : undefined, map.getZoom());
+}
+
 function closeSheet() {
   sheet = null;
   follow = false;
@@ -710,6 +761,7 @@ function renderSheet() {
   else if (sheet?.kind === 'station') html = stationSheet(sheet.name, sheet.dir);
   else if (sheet?.kind === 'aircraft') html = aircraftSheet(sheet.hex);
   else if (sheet?.kind === 'ship') html = shipSheet(sheet.mmsi);
+  else if (sheet?.kind === 'airport') html = airportSheet(sheet.name, sheet.intl);
   if (!html) {
     // 列車が終着した・飛行機や船が範囲外に出たなどで表示対象がなくなった
     if (sheet && sheet.kind !== 'station') sheet = null;
@@ -731,21 +783,33 @@ function renderSheet() {
   }
 }
 
+/** 見出しに置く登録ボタン（ログイン機能がないときは出さない） */
+function favButton(kind: FavKind, id: string, label: string): string {
+  if (!GOOGLE_CLIENT_ID) return '';
+  const on = isFav(kind, id);
+  const text = kind === 'station' ? t().favStation : on ? t().tracking : t().track;
+  return `<button type="button" class="fav-btn ${on ? 'on' : ''}" aria-pressed="${on}" data-fav-kind="${kind}" data-fav-id="${escapeHtml(id)}" data-fav-label="${escapeHtml(label)}">
+    <span aria-hidden="true">${on ? '★' : '☆'}</span>${text}</button>`;
+}
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 function trainSheet(id: string): string {
   const cur = states.find((s) => s.id === id);
   if (!cur) return '';
   const route = routes.get(cur.train.r)!;
   const s = cur.train.s;
-  const name = (k: number) => route.stations[s[k][0]].name;
+  const tx = t();
+  const key = (k: number) => route.stations[s[k][0]].name;
+  const name = (k: number) => station(key(k));
   const dest = name(s.length - 1);
   const color = lineColor.get(cur.line) ?? '#333';
   const here = route.stations[cur.at].name;
   const curK = s.findIndex((x) => x[0] === cur.at);
   const status = cur.stopped
-    ? `<b>${here}</b> に停車中`
-    : `<b>${here}</b> → <b>${curK + 1 < s.length ? name(curK + 1) : dest}</b> 間を走行中`;
-  const speed = cur.stopped ? '' : `<span class="speed">約 ${Math.round(cur.speed / 5) * 5} km/h</span>`;
-  const next = cur.nextStop !== null ? `次の停車駅 <b>${name(cur.nextStop)}</b> ${formatTime(s[cur.nextStop][1])}着` : '';
+    ? tx.stoppedAt(station(here))
+    : tx.runningBetween(station(here), curK + 1 < s.length ? name(curK + 1) : dest);
+  const speed = cur.stopped ? '' : `<span class="speed">${tx.speed(Math.round(cur.speed / 5) * 5)}</span>`;
+  const next = cur.nextStop !== null ? tx.nextStop(name(cur.nextStop), formatTime(s[cur.nextStop][1])) : '';
   const off = officialFor(cur.line, here);
   const stops = s
     .map((x, k) => ({ x, k }))
@@ -753,25 +817,28 @@ function trainSheet(id: string): string {
     .map(({ x, k }) => {
       const passed = cur.stopped ? k < curK : k <= curK;
       const now = cur.stopped && k === curK;
-      const time = k === 0 ? `${formatTime(x[2])}発` : k === s.length - 1 ? `${formatTime(x[1])}着` : `${formatTime(x[1])}着 ${formatTime(x[2])}発`;
-      return `<li class="${passed ? 'passed' : ''} ${now ? 'now' : ''}"><button type="button" class="st" data-station="${name(k)}">${name(k)}</button><span class="tm">${time}</span></li>`;
+      const time = k === 0 ? tx.dep(formatTime(x[2]))
+        : k === s.length - 1 ? tx.arr(formatTime(x[1]))
+        : `${tx.arr(formatTime(x[1]))} ${tx.dep(formatTime(x[2]))}`;
+      return `<li class="${passed ? 'passed' : ''} ${now ? 'now' : ''}"><button type="button" class="st" data-station="${key(k)}">${name(k)}</button><span class="tm">${time}</span></li>`;
     })
     .join('');
 
   return `
     <div class="sheet-head" style="--c:${color}">
       <span class="arrow"></span>
-      <h2>${cur.train.n} ${cur.train.no}号</h2>
-      <span class="sub">${dest}行</span>
+      <h2>${trainTitle(cur.train.n, cur.train.no)}</h2>
+      <span class="sub">${tx.bound(dest)}</span>
+      ${favButton('train', id, trainTitle(cur.train.n, cur.train.no))}
     </div>
     <p class="status">${status}${speed}</p>
     <p class="next">${next}</p>
     <div class="actions">
-      <button type="button" id="follow-btn" class="${follow ? 'on' : ''}">${follow ? '追従中' : '列車を追従'}</button>
+      <button type="button" id="follow-btn" class="${follow ? 'on' : ''}">${follow ? tx.following : tx.follow}</button>
       <a href="${off.url}" target="_blank" rel="noopener">${off.label} ↗</a>
     </div>
     <ol class="stops">${stops}</ol>
-    <p class="small">時刻・号数は推定値です。駅名をタップするとその駅の時刻表を表示します。</p>`;
+    <p class="small">${tx.trainNote}</p>`;
 }
 
 function stationSheet(name: string, dir: 1 | -1): string {
@@ -782,19 +849,20 @@ function stationSheet(name: string, dir: 1 | -1): string {
   const list = deps(dir);
   const now = serviceTime(nowMinutes());
   const running = new Set(states.map((s) => s.id));
+  const tx = t();
 
   const headed = (d: 1 | -1) => {
     const count = new Map<string, number>();
     for (const e of deps(d)) count.set(e.dest, (count.get(e.dest) ?? 0) + 1);
-    const top = [...count].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([n]) => n);
-    return top.length ? `${top.join('・')}方面` : '';
+    const top = [...count].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([n]) => station(n));
+    return top.length ? tx.toward(top) : '';
   };
   const tab = (d: 1 | -1, label: string) =>
     deps(d).length ? `<button type="button" class="tab ${d === dir ? 'on' : ''}" data-dir="${d}"><b>${label}</b><span>${headed(d)}</span></button>` : '';
 
   const lineChips = lines
     .filter((l) => l.stations.some((s) => s.name === name))
-    .map((l) => `<span class="line-chip" style="--c:${l.color}">${l.name}</span>`)
+    .map((l) => `<span class="line-chip" style="--c:${l.color}">${lineName(l)}</span>`)
     .join('');
 
   const curHour = Math.floor(now / 60);
@@ -804,7 +872,7 @@ function stationSheet(name: string, dir: 1 | -1): string {
     const h = Math.floor(e.dep / 60);
     const rows = hours.get(h) ?? [];
     if (!marked && e.dep >= now) {
-      rows.push(`<li class="now-line"><span>いま ${formatTime(now)}</span></li>`);
+      rows.push(`<li class="now-line"><span>${tx.now(formatTime(now))}</span></li>`);
       marked = true;
     }
     const id = trainId(e.train);
@@ -813,86 +881,156 @@ function stationSheet(name: string, dir: 1 | -1): string {
       <li class="${e.dep < now ? 'passed' : ''}">
         <button type="button" class="dep" ${running.has(id) ? `data-train="${id}"` : 'disabled'}>
           <span class="t">${String(Math.floor(e.dep % 60)).padStart(2, '0')}</span>
-          <span class="nm" style="--c:${color}">${e.train.n}${e.train.no}</span>
-          <span class="dest">${e.dest}行${e.first ? ' <small>始発</small>' : ''}</span>
-          ${running.has(id) ? '<span class="live">運行中</span>' : ''}
+          <span class="nm" style="--c:${color}">${trainLabel(e.train.n, e.train.no)}</span>
+          <span class="dest">${tx.bound(station(e.dest))}${e.first ? ` <small>${tx.origin}</small>` : ''}</span>
+          ${running.has(id) ? `<span class="live">${tx.live}</span>` : ''}
         </button>
       </li>`);
     hours.set(h, rows);
   }
   if (!marked && list.length) {
     const h = Math.floor(list[list.length - 1].dep / 60);
-    hours.get(h)!.push(`<li class="now-line"><span>いま ${formatTime(now)}（本日の発車は終了）</span></li>`);
+    hours.get(h)!.push(`<li class="now-line"><span>${tx.nowEnded(formatTime(now))}</span></li>`);
   }
   const table = [...hours]
-    .map(([h, rows]) => `<section class="hour ${h === curHour ? 'cur' : ''}"><div class="h"><span>${h % 24}<small>時</small></span></div><ul>${rows.join('')}</ul></section>`)
+    .map(([h, rows]) => `<section class="hour ${h === curHour ? 'cur' : ''}"><div class="h"><span>${h % 24}<small>${tx.hour}</small></span></div><ul>${rows.join('')}</ul></section>`)
     .join('');
 
   return `
     <div class="sticky">
       <div class="sheet-head station">
         <span class="st-icon"></span>
-        <h2>${name}</h2>
-        <span class="sub">駅 時刻表</span>
+        <h2>${station(name)}</h2>
+        <span class="sub">${tx.timetable}</span>
+        ${favButton('station', name, tx.stationOf(station(name)))}
       </div>
       <div class="line-chips">${lineChips}</div>
-      <div class="tabs">${tab(1, '下り')}${tab(-1, '上り')}</div>
+      <div class="tabs">${tab(1, tx.down)}${tab(-1, tx.up)}</div>
     </div>
-    <div class="timetable">${table || '<p class="small">発車する列車はありません。</p>'}</div>
-    <p class="small">推定時刻表です。「運行中」の列車をタップすると現在位置を表示します。</p>`;
+    <div class="timetable">${table || `<p class="small">${tx.noDepartures}</p>`}</div>
+    <p class="small">${tx.stationNote}</p>`;
 }
 
-const COMPASS = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+const compass = (deg: number) => t().compass[Math.round(deg / 45) % 8];
 
 function aircraftSheet(hex: string): string {
   const a = aircraft.find((x) => x.hex === hex);
   if (!a) return '';
+  const tx = t();
   const color = a.intl ? PLANE_COLORS.international : PLANE_COLORS.domestic;
-  const num = (x: number) => x.toLocaleString('ja-JP');
+  const num = (x: number) => x.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP');
   const rows: [string, string][] = [];
-  if (a.flight && a.callsign) rows.push(['コールサイン', a.callsign]);
-  if (a.from && a.to) rows.push(['経路', `${a.from} → ${a.to}`]);
-  if (a.alt !== null) rows.push(['高度', `${num(Math.round(a.alt / 100) * 100)} ft（約 ${num(Math.round((a.alt * 0.3048) / 10) * 10)} m）`]);
-  if (a.gs !== null) rows.push(['対地速度', `${Math.round(a.gs)} kt（約 ${num(Math.round((a.gs * 1.852) / 10) * 10)} km/h）`]);
-  if (a.heading !== null) rows.push(['進行方向', `${Math.round(a.heading)}°（${COMPASS[Math.round(a.heading / 45) % 8]}）`]);
-  if (a.type) rows.push(['機種', a.type]);
-  if (a.reg) rows.push(['登録記号', a.reg]);
+  if (a.flight && a.callsign) rows.push([tx.callsign, a.callsign]);
+  if (a.from && a.to) rows.push([tx.route, `${a.from} → ${a.to}`]);
+  if (a.alt !== null) rows.push([tx.altitude, `${num(Math.round(a.alt / 100) * 100)} ft (${tx.about(num(Math.round((a.alt * 0.3048) / 10) * 10))} m)`]);
+  if (a.gs !== null) rows.push([tx.groundSpeed, `${Math.round(a.gs)} kt (${tx.about(num(Math.round((a.gs * 1.852) / 10) * 10))} km/h)`]);
+  if (a.heading !== null) rows.push([tx.heading, `${Math.round(a.heading)}° (${compass(a.heading)})`]);
+  if (a.type) rows.push([tx.aircraftType, a.type]);
+  if (a.reg) rows.push([tx.registration, a.reg]);
   const age = Math.round((Date.now() - a.at) / 1000);
   return `
     <div class="sheet-head" style="--c:${color}">
       <span class="plane-mark big">✈</span>
       <h2>${aircraftLabel(a)}</h2>
-      <span class="badge-type">${a.intl ? '国際線' : '国内線'}</span>
+      <span class="badge-type">${a.intl ? tx.international : tx.domestic}</span>
+      ${favButton('aircraft', aircraftKey(a), aircraftLabel(a))}
     </div>
     <dl class="facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     <div class="actions">
-      <a href="https://adsb.lol/?icao=${a.hex}" target="_blank" rel="noopener">adsb.lol で詳しく見る ↗</a>
+      <a href="https://adsb.lol/?icao=${a.hex}" target="_blank" rel="noopener">${tx.moreOn('adsb.lol')}</a>
     </div>
-    <p class="small">ADS-B の受信データ（約${age}秒前の位置から推定）。国内線・国際線は便名の経路から判定し、不明な場合は航空会社や登録国から推定しています。</p>`;
+    <p class="small">${tx.aircraftNote(age)}</p>`;
 }
 
 function shipSheet(mmsi: number): string {
   const s = ships.find((x) => x.mmsi === mmsi);
   if (!s) return '';
+  const tx = t();
   const rows: [string, string][] = [];
-  rows.push(['状態', s.moving ? '航行中' : '停泊中・停船中']);
-  if (s.sog !== null) rows.push(['速力', `${s.sog.toFixed(1)} ノット（約 ${Math.round(s.sog * 1.852)} km/h）`]);
-  if (s.heading !== null) rows.push(['船首の向き', `${Math.round(s.heading)}°（${COMPASS[Math.round(s.heading / 45) % 8]}）`]);
-  if (s.dest) rows.push(['行先（AIS）', s.dest]);
-  if (s.length) rows.push(['全長', `約 ${s.length} m`]);
+  rows.push([tx.status, s.moving ? tx.underway : tx.moored]);
+  if (s.sog !== null) rows.push([tx.shipSpeed, `${s.sog.toFixed(1)} ${tx.knots} (${tx.about(String(Math.round(s.sog * 1.852)))} km/h)`]);
+  if (s.heading !== null) rows.push([tx.bow, `${Math.round(s.heading)}° (${compass(s.heading)})`]);
+  if (s.dest) rows.push([tx.destination, escapeHtml(s.dest)]);
+  if (s.length) rows.push([tx.length, `${tx.about(String(s.length))} m`]);
   rows.push(['MMSI', String(s.mmsi)]);
   const age = Math.round((Date.now() - s.at) / 1000);
   return `
     <div class="sheet-head" style="--c:${SHIP_COLOR}">
       <span class="ship-mark big"></span>
-      <h2>${shipLabel(s)}</h2>
-      <span class="badge-type ship">旅客船</span>
+      <h2>${escapeHtml(shipLabel(s))}</h2>
+      <span class="badge-type ship">${tx.ship}</span>
+      ${favButton('ship', String(s.mmsi), shipLabel(s))}
     </div>
     <dl class="facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     <div class="actions">
-      <a href="https://www.vesselfinder.com/vessels/details/${s.mmsi}" target="_blank" rel="noopener">VesselFinder で詳しく見る ↗</a>
+      <a href="https://www.vesselfinder.com/vessels/details/${s.mmsi}" target="_blank" rel="noopener">${tx.moreOn('VesselFinder')}</a>
     </div>
-    <p class="small">AIS の受信データ（約${age}秒前の位置から推定）。行先は船から送られた文字をそのまま表示しています。</p>`;
+    <p class="small">${tx.shipNote(age)}</p>`;
+}
+
+/**
+ * 空港を発着して今飛んでいる便。arr: 到着予定（その空港へ向かう）/ 出発した便。
+ * minutes: 到着までの分（到着予定）・出発してからの分（出発した便）を、残りの距離と今の速度から推定
+ */
+function airportFlights(code: string) {
+  const ap = airports.find((x) => airportCode(x.name) === code);
+  const ms = Date.now();
+  const out: { a: Aircraft; arr: boolean; minutes: number | null }[] = [];
+  for (const a of aircraft) {
+    const arr = a.to === code;
+    if (!arr && a.from !== code) continue;
+    const km = ap ? distKm(aircraftAt(a, ms), [ap.lng, ap.lat]) : null;
+    out.push({ a, arr, minutes: km !== null && a.gs ? (km / (a.gs * 1.852)) * 60 : null });
+  }
+  return out;
+}
+
+function airportSheet(name: string, intl: boolean): string {
+  const tx = t();
+  const code = airportCode(name);
+  const flights = code ? airportFlights(code) : [];
+  const now = jstNowMinutes();
+  const count = (i: boolean) => flights.filter((f) => f.a.intl === i).length;
+  const tab = (i: boolean, label: string) =>
+    `<button type="button" class="tab ${i === intl ? 'on' : ''}" data-intl="${i ? 1 : 0}"><b>${label}</b><span>${count(i)}</span></button>`;
+
+  const row = ({ a, arr, minutes }: (typeof flights)[number]) => {
+    const time = minutes === null ? '--:--' : formatTime(arr ? now + minutes : now - minutes + 1440);
+    const color = a.intl ? '#d6247e' : '#8a6a00';
+    const other = arr ? tx.fromAirport(a.from) : tx.toAirport(a.to);
+    const alt = a.alt !== null ? `${Math.round(a.alt / 100) * 100} ft` : '';
+    return `
+      <li>
+        <button type="button" class="dep" data-aircraft="${a.hex}">
+          <span class="tt">${tx.approx(time)}</span>
+          <span class="nm" style="--c:${color}">${escapeHtml(aircraftLabel(a))}</span>
+          <span class="dest">${other}${a.type ? ` <small>${escapeHtml(a.type)}</small>` : ''}</span>
+          <span class="alt">${alt}</span>
+        </button>
+      </li>`;
+  };
+  const list = flights.filter((f) => f.a.intl === intl);
+  const section = (title: string, items: typeof flights) =>
+    items.length ? `<section class="flights"><h3>${title}</h3><ul>${items.map(row).join('')}</ul></section>` : '';
+  // 到着予定は早い順、出発した便は新しい順
+  const arrivals = list.filter((f) => f.arr).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
+  const departures = list.filter((f) => !f.arr).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
+  const body = !code ? `<p class="small">${tx.noCode}</p>`
+    : section(tx.arriving, arrivals) + section(tx.departed, departures) || `<p class="small">${tx.noFlights}</p>`;
+
+  return `
+    <div class="sticky">
+      <div class="sheet-head station">
+        <span class="ap-icon"></span>
+        <h2>${airportName(name)}</h2>
+        <span class="sub">${code ? `${code} · ` : ''}${tx.airportFlights}</span>
+      </div>
+      ${code ? `<div class="tabs">${tab(false, tx.domestic)}${tab(true, tx.international)}</div>` : ''}
+    </div>
+    <div class="timetable">${body}</div>
+    ${arrivals.length ? `<p class="small">${tx.etaNote}</p>` : ''}
+    <p class="small">${tx.airportNote}</p>
+    ${code ? `<div class="actions"><a href="https://www.flightradar24.com/data/airports/${code.toLowerCase()}" target="_blank" rel="noopener">${tx.schedules('Flightradar24')}</a></div>` : ''}`;
 }
 
 function bindSheet() {
@@ -911,6 +1049,13 @@ function bindSheet() {
   body.querySelectorAll<HTMLButtonElement>('[data-train]').forEach((b) =>
     b.addEventListener('click', () => openTrain(b.dataset.train!)),
   );
+  body.querySelectorAll<HTMLButtonElement>('[data-fav-kind]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const { favKind, favId, favLabel } = b.dataset;
+      // ゲストは閲覧のみ: ログインを案内する
+      if (!toggleFav(favKind as FavKind, { id: favId!, label: favLabel! })) openMyPanel(t().loginToRegister);
+    }),
+  );
   body.querySelectorAll<HTMLButtonElement>('[data-dir]').forEach((b) =>
     b.addEventListener('click', () => {
       if (sheet?.kind !== 'station') return;
@@ -919,13 +1064,157 @@ function bindSheet() {
       renderSheet();
     }),
   );
+  body.querySelectorAll<HTMLButtonElement>('[data-intl]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (sheet?.kind !== 'airport') return;
+      sheet.intl = b.dataset.intl === '1';
+      renderSheet();
+    }),
+  );
+  body.querySelectorAll<HTMLButtonElement>('[data-aircraft]').forEach((b) =>
+    b.addEventListener('click', () => openAircraft(b.dataset.aircraft!)),
+  );
 }
+
+// ---- マイリスト（ログインと、登録した列車・飛行機・船・駅） ----
+const USER_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v1.5h16V19c0-2.8-3.6-5-8-5z"/></svg>';
+let myNotice = '';
+
+function setupUser() {
+  const btn = $('my-btn');
+  if (!GOOGLE_CLIENT_ID) return; // ログイン機能を設定していない
+  btn.hidden = false;
+  btn.addEventListener('click', () => ($('my-panel').hidden ? openMyPanel() : togglePanel('my-panel', false)));
+  onUserChange(() => {
+    renderMyButton();
+    drawStations();
+    renderSheet();
+    renderMyPanel();
+  });
+  // 他の端末で登録した内容を取り込む
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshUser();
+  });
+  renderMyButton();
+  refreshUser();
+}
+
+function renderMyButton() {
+  const btn = $('my-btn');
+  const a = user.account;
+  btn.innerHTML = a?.picture ? `<img src="${escapeHtml(a.picture)}" alt="" referrerpolicy="no-referrer">` : USER_ICON;
+  btn.classList.toggle('signed-in', !!a);
+  btn.setAttribute('aria-label', a ? `${t().myList} (${a.name})` : t().myListLogin);
+}
+
+function openMyPanel(notice = '') {
+  myNotice = notice;
+  preloadGoogle().catch(() => {}); // ログインのポップアップをタップ直後に開けるように
+  togglePanel('my-panel', true);
+  renderMyPanel();
+}
+
+function renderMyPanel() {
+  const el = $('my-panel');
+  if (el.hidden) return;
+  const a = user.account;
+  const fav = user.data.favorites;
+  const tx = t();
+  const account = a
+    ? `<div class="account">
+        ${a.picture ? `<img src="${escapeHtml(a.picture)}" alt="" referrerpolicy="no-referrer">` : ''}
+        <div><b>${escapeHtml(a.name)}</b><span class="small">${user.busy ? tx.saving : tx.savedToDrive}</span></div>
+        <button type="button" id="sign-out">${tx.signOut}</button>
+      </div>`
+    : `<div class="account guest">
+        <p>${tx.guest}</p>
+        <p class="small">${tx.guestNote}</p>
+        <button type="button" id="sign-in" class="primary" ${user.busy ? 'disabled' : ''}>${user.busy ? tx.signingIn : tx.signIn}</button>
+      </div>`;
+  const message = user.error || myNotice;
+
+  const now = Date.now();
+  const row = (kind: FavKind, id: string, label: string, status: string, open: string) => `
+    <li>
+      <button type="button" class="my-item" ${open ? `data-open="${open}"` : 'disabled'}><b>${escapeHtml(label)}</b><span>${status}</span></button>
+      <button type="button" class="fav-btn on icon" aria-label="${tx.unregister}" data-fav-kind="${kind}" data-fav-id="${escapeHtml(id)}" data-fav-label="${escapeHtml(label)}">★</button>
+    </li>`;
+  const section = (title: string, items: string[]) => (items.length ? `<h3>${title}</h3><ul class="my-list">${items.join('')}</ul>` : '');
+  const trains = fav.train.map((f) => {
+    // 名前は表示中の言語で作り直す（登録したときの言語で保存されているため）
+    const tr = timetable.trains.find((x) => trainId(x) === f.id);
+    const label = tr ? trainTitle(tr.n, tr.no) : f.label;
+    const st = states.find((s) => s.id === f.id);
+    if (!st) return row('train', f.id, label, tx.noService, '');
+    const here = station(routes.get(st.train.r)!.stations[st.at].name);
+    return row('train', f.id, label, st.stopped ? tx.stoppedAtShort(here) : tx.leftShort(here), `train:${f.id}`);
+  });
+  const planes = fav.aircraft.map((f) => {
+    const p = aircraft.find((x) => aircraftKey(x) === f.id);
+    if (!p) return row('aircraft', f.id, f.label, tx.notFlying, '');
+    const alt = p.alt !== null ? ` · ${tx.altitude} ${Math.round(p.alt / 100) * 100} ft` : '';
+    return row('aircraft', f.id, f.label, `${tx.flying}${p.from && p.to ? ` · ${p.from} → ${p.to}` : ''}${alt}`, `aircraft:${p.hex}`);
+  });
+  const boats = fav.ship.map((f) => {
+    const s = ships.find((x) => String(x.mmsi) === f.id);
+    if (!s) return row('ship', f.id, f.label, tx.notReceived, '');
+    return row('ship', f.id, f.label, `${s.moving ? tx.underway : tx.moored} · ${tx.minutesAgo(Math.round((now - s.at) / 60000))}`, `ship:${s.mmsi}`);
+  });
+  const favStations = fav.station.map((f) => row('station', f.id, tx.stationOf(station(f.id)), tx.openTimetable, `station:${f.id}`));
+  const lists = section(tx.trains, trains) + section(tx.aircraft, planes) + section(tx.ships, boats) + section(tx.stations, favStations);
+
+  el.innerHTML = `
+    <h2>${tx.myList}</h2>
+    ${account}
+    ${message ? `<p class="notice">${escapeHtml(message)}</p>` : ''}
+    ${a ? lists || `<p class="small">${tx.empty}</p>` : ''}
+    <p class="small privacy-link"><a href="${tx.privacyUrl}" target="_blank" rel="noopener">${tx.privacy}</a></p>
+    <button type="button" id="my-close" class="primary">${tx.close}</button>`;
+
+  el.querySelector('#sign-in')?.addEventListener('click', () => {
+    myNotice = '';
+    signIn();
+  });
+  el.querySelector('#sign-out')?.addEventListener('click', () => signOut());
+  el.querySelector('#my-close')!.addEventListener('click', () => togglePanel('my-panel', false));
+  el.querySelectorAll<HTMLButtonElement>('[data-open]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const [kind, id] = b.dataset.open!.split(/:(.*)/s);
+      togglePanel('my-panel', false);
+      if (kind === 'train') openTrain(id);
+      else if (kind === 'aircraft') openAircraft(id);
+      else if (kind === 'ship') openShip(Number(id));
+      else openStation(id);
+    }),
+  );
+  el.querySelectorAll<HTMLButtonElement>('[data-fav-kind]').forEach((b) =>
+    b.addEventListener('click', () => toggleFav(b.dataset.favKind as FavKind, { id: b.dataset.favId!, label: b.dataset.favLabel! })),
+  );
+}
+
+// ---- 言語の切り替え（地図はそのままで、文言と名前を描き直す） ----
+function applyLanguage(l: Lang) {
+  setLang(l);
+  document.title = t().title;
+  document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) => b.classList.toggle('on', b.dataset.setLang === l));
+  if (!timetable) return; // データの読み込み前（読み込み後に今の言語で描く）
+  buildLineFilter();
+  drawStations();
+  drawAirports();
+  if (GOOGLE_CLIENT_ID) renderMyButton();
+  refresh();
+}
+document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) =>
+  b.addEventListener('click', () => applyLanguage(b.dataset.setLang as Lang)),
+);
+document.title = t().title;
+document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) => b.classList.toggle('on', b.dataset.setLang === lang));
 
 // ---- パネル操作 ----
 function togglePanel(id: string, force?: boolean) {
   const el = $(id);
   const open = force ?? el.hidden;
-  for (const p of ['time-panel', 'info-panel']) $(p).hidden = true;
+  for (const p of ['time-panel', 'info-panel', 'my-panel']) $(p).hidden = true;
   el.hidden = !open;
 }
 $('sheet-close').addEventListener('click', closeSheet);
@@ -959,5 +1248,5 @@ $('time-now').addEventListener('click', () => {
 
 init().catch((err) => {
   console.error(err);
-  $('clock-count').textContent = 'データの読み込みに失敗しました';
+  $('clock-count').textContent = t().loadFailed;
 });

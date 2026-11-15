@@ -1,6 +1,8 @@
-# 新幹線ロケーション
+# のりものレーダー（Norimono Radar）
 
-日本のすべての新幹線の「いまどこを走っているか」を地図に表示する Web アプリです。スマホでの表示を基本にしていて、PC のブラウザでも使えます。
+日本のすべての新幹線と、日本の上空の飛行機・近海の旅客船の「いまどこにいるか」を地図に表示する Web アプリです。スマホでの表示を基本にしていて、PC のブラウザでも使えます。日本語と英語を切り替えられます。
+
+公開先: https://fuuchan-lab.github.io/norimono-radar/
 
 > **注意**: 列車の位置は、運転パターンから作った**推定時刻表**をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。実際の運行状況は各社の公式情報で確認してください。
 
@@ -23,12 +25,25 @@
 - 日本近海の旅客船を、上から見た船の形の濃い水色のアイコンで、船首を進行方向に向けて表示する（表示を切り替えられる）
 - 路線ごとに表示を切り替える
 - 表示時刻を指定し、×10・×60 で早送りする（夜間の確認用）
+- 空港をタップすると、その空港を発着して今飛んでいる便（到着予定・出発した便）を、国内線・国際線のタブに分けて表示する。到着時刻は残りの距離と速度から推定。地図の空港名の下に空港コード（HND など）を出す
+- 日本語・英語を切り替えられる（初期値はブラウザの言語。「このアプリについて」で切り替え）
+- Google アカウントでログインすると、列車・飛行機・船のトラッキングと、お気に入りの駅を登録できる。登録したものは縁取りを太くし、縮小しても名前を出す。右上のボタンの「マイリスト」から一覧・移動できる。ゲストは閲覧のみ
+- [プライバシーポリシー](public/privacy.html)（個人情報の保存の仕組み・作者について）
+
+## Google ログインの設定
+
+ログインは [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model) のトークン方式で、ブラウザだけで完結します（LeadLog と同じ）。登録内容は利用者の Google ドライブのアプリ専用領域（appDataFolder）の `user.json` に保存します（`src/user.ts`）。
+
+1. [Google Cloud コンソール](https://console.cloud.google.com/) でプロジェクト「Norimono Radar」を作り、「Google Drive API」を有効にする
+2. 「OAuth 同意画面」を作る（アプリ名: のりものレーダー、スコープ: `drive.appdata`・`userinfo.profile`、プライバシーポリシー: `https://fuuchan-lab.github.io/norimono-radar/privacy.html`）。「テスト中」の間は、テストユーザーに登録したアカウントだけログインできる
+3. 「認証情報」→「OAuth クライアント ID」→ 種類「ウェブ アプリケーション」で作り、「承認済みの JavaScript 生成元」に `https://fuuchan-lab.github.io`・`http://localhost:5173`・`http://localhost:4173` を登録する
+4. クライアント ID（公開してよい値）を `.env.production` と `.env.development` の `VITE_GOOGLE_CLIENT_ID` に書く。未設定の場合、ログインと登録のボタンは出ない
 
 ## 開発
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173/ShinkansenLocation/
+npm run dev      # http://localhost:5173/norimono-radar/
 npm run build    # dist/ に出力
 ```
 
@@ -72,7 +87,8 @@ npm run build    # dist/ に出力
 **旅客船**（`/ships`）
 - Durable Object が [aisstream.io](https://aisstream.io) に常時接続し、日本近海の AIS を受け取る
 - 船種（60〜69 = 旅客船）は位置とは別に約6分おきに届くため、旅客船だと分かった船から順に表示される。分かった船名・船種は保存し、再接続後すぐ使う
-- 誰も見ていない状態が10分続くと接続を切る（無料枠の節約）。次のアクセスで再接続する
+- 日本近海は受信局が少なく船種が届きにくいため、誰も見ていなくても接続を保ち、旅客船の船名・船種を貯める（無料枠で約 10,800 / 13,000 GB 秒/日）
+- 船種が不明でも、船名に FERRY・JETFOIL などが入る船は定期旅客船として表示する
 
 ```sh
 cd worker
@@ -95,6 +111,8 @@ src/       フロントエンド（Vite + TypeScript + MapLibre GL JS）
   icons.ts     駅・空港アイコン
   aircraft.ts  飛行機の取得・位置の推定
   ships.ts     旅客船の取得・位置の推定
+  user.ts      Google ログインと、登録内容の Google ドライブへの保存
+  i18n.ts      日本語・英語の文言（names-en.ts: 駅名・空港名などの英語表記と空港コード）
   main.ts      地図・UI
 worker/    飛行機・旅客船のデータを中継する Cloudflare Worker
 ```

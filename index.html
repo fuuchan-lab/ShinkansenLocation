@@ -4,8 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b1f3a" />
-    <meta name="description" content="日本の全新幹線の現在位置を、時刻表から推定して地図に表示します。" />
-    <title>新幹線ロケーション</title>
+    <meta name="description" content="日本の全新幹線（推定）と、日本の上空の飛行機・近海の旅客船の現在位置を地図に表示します。 / Live map of Japan's Shinkansen (estimated), flights and ferries." />
+    <title>のりものレーダー</title>
+    <!-- 表示言語を先に決めて、違う言語の文字が一瞬見えないようにする（src/i18n.ts と同じ判定） -->
+    <script>
+      try {
+        var l = localStorage.getItem('lang');
+        document.documentElement.lang = l === 'ja' || l === 'en' ? l : navigator.language.toLowerCase().indexOf('ja') === 0 ? 'ja' : 'en';
+      } catch (e) {}
+    </script>
     <!-- 地図ライブラリの読み込みを待たずに、データの取得と地図タイルなどへの接続を始める -->
     <link rel="preload" href="%BASE_URL%data/network.json" as="fetch" crossorigin />
     <link rel="preload" href="%BASE_URL%data/timetable.json" as="fetch" crossorigin />
@@ -21,54 +28,86 @@
 
     <header class="topbar">
       <div class="brand">
-        <h1>新幹線ロケーション</h1>
-        <span class="badge">推定</span>
+        <h1><span data-lang="ja">のりものレーダー</span><span data-lang="en">Norimono Radar</span></h1>
+        <span class="badge"><span data-lang="ja">推定</span><span data-lang="en">Est.</span></span>
       </div>
-      <button id="clock" class="clock" type="button" aria-label="表示時刻を変更">
+      <button id="clock" class="clock" type="button" aria-label="表示時刻を変更 / Change time">
         <span id="clock-time">--:--</span>
         <span id="clock-count" class="count"></span>
       </button>
-      <button id="info-btn" class="icon-btn" type="button" aria-label="このアプリについて">i</button>
+      <button id="my-btn" class="icon-btn my-btn" type="button" aria-label="マイリスト / My list" hidden></button>
+      <button id="info-btn" class="icon-btn" type="button" aria-label="このアプリについて / About">i</button>
     </header>
 
-    <nav id="line-filter" class="line-filter" aria-label="路線の表示切替"></nav>
+    <nav id="line-filter" class="line-filter" aria-label="表示の切替 / Layers"></nav>
 
     <aside id="sheet" class="sheet" hidden>
-      <button id="sheet-close" class="sheet-close" type="button" aria-label="閉じる">×</button>
+      <button id="sheet-close" class="sheet-close" type="button" aria-label="閉じる / Close">×</button>
       <div id="sheet-body"></div>
     </aside>
 
     <div id="time-panel" class="popover" hidden>
-      <h2>表示時刻</h2>
+      <h2><span data-lang="ja">表示時刻</span><span data-lang="en">Display time</span></h2>
       <label class="row">
-        <span>時刻</span>
+        <span><span data-lang="ja">時刻</span><span data-lang="en">Time</span></span>
         <input id="time-input" type="time" step="60" />
       </label>
-      <div class="row speed" role="group" aria-label="再生速度">
-        <span>速度</span>
+      <div class="row speed" role="group" aria-label="再生速度 / Speed">
+        <span><span data-lang="ja">速度</span><span data-lang="en">Speed</span></span>
         <button type="button" data-speed="1" class="on">×1</button>
         <button type="button" data-speed="10">×10</button>
         <button type="button" data-speed="60">×60</button>
       </div>
-      <button id="time-now" type="button" class="primary">現在時刻に戻す</button>
+      <button id="time-now" type="button" class="primary"><span data-lang="ja">現在時刻に戻す</span><span data-lang="en">Back to now</span></button>
     </div>
 
+    <div id="my-panel" class="popover my" hidden></div>
+
     <div id="info-panel" class="popover info" hidden>
-      <h2>このアプリについて</h2>
-      <p>列車の位置は、運転パターンから作った<strong>推定時刻表</strong>をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。</p>
-      <p>実際の運行状況は各社の公式情報で確認してください。</p>
-      <p>飛行機は、航空機が発信する ADS-B を有志が受信して公開しているデータ（<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>）から、30秒ごとに現在位置を表示しています。受信局のない空域の機体は表示されません。国内線・国際線は便名の経路（<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>）から判定し、わからない場合は航空会社や登録国から推定しています。</p>
-      <p>旅客船は、船が発信する AIS を有志が受信して公開しているデータ（<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>）から表示しています。受信局のない海域の船や、AIS を発信していない船は表示されません。</p>
+      <div class="lang-switch" role="group" aria-label="言語 / Language">
+        <button type="button" data-set-lang="ja">日本語</button>
+        <button type="button" data-set-lang="en">English</button>
+      </div>
+      <div data-lang="ja">
+        <h2>このアプリについて</h2>
+        <p>列車の位置は、運転パターンから作った<strong>推定時刻表</strong>をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。</p>
+        <p>実際の運行状況は各社の公式情報で確認してください。</p>
+        <p>飛行機は、航空機が発信する ADS-B を有志が受信して公開しているデータ（<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>）から、30秒ごとに現在位置を表示しています。受信局のない空域の機体は表示されません。国内線・国際線は便名の経路（<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>）から判定し、わからない場合は航空会社や登録国から推定しています。</p>
+        <p>旅客船は、船が発信する AIS を有志が受信して公開しているデータ（<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>）から表示しています。受信局のない海域の船や、AIS を発信していない船は表示されません。</p>
+      </div>
+      <div data-lang="en">
+        <h2>About</h2>
+        <p>Train positions are calculated from an <strong>estimated timetable</strong> built from typical service patterns. Actual schedules, delays and cancellations are not reflected, and train numbers differ from the real ones.</p>
+        <p>Please check each operator's official information for actual service status.</p>
+        <p>Flights are shown every 30 seconds from ADS-B data received and shared by volunteers (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>). Aircraft in areas without receivers are not shown. Domestic / international is judged from the flight's route (<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>), or from the airline and country of registration when unknown.</p>
+        <p>Ferries are shown from AIS data received and shared by volunteers (<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>). Ships in areas without receivers, or without AIS, are not shown.</p>
+      </div>
       <ul class="links">
-        <li><a href="https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html" target="_blank" rel="noopener">JR東海（東海道新幹線）</a></li>
-        <li><a href="https://trafficinfo.westjr.co.jp/sanyo.html" target="_blank" rel="noopener">JR西日本（山陽・北陸新幹線）</a></li>
-        <li><a href="https://traininfo.jreast.co.jp/train_info/shinkansen.aspx" target="_blank" rel="noopener">JR東日本（東北・上越・北陸・山形・秋田新幹線）</a></li>
-        <li><a href="https://www3.jrhokkaido.co.jp/webunkou/" target="_blank" rel="noopener">JR北海道（北海道新幹線）</a></li>
-        <li><a href="https://www.jrkyushu.co.jp/trains/info/" target="_blank" rel="noopener">JR九州（九州・西九州新幹線）</a></li>
+        <li><a href="https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html" target="_blank" rel="noopener"><span data-lang="ja">JR東海（東海道新幹線）</span><span data-lang="en">JR Central (Tokaido Shinkansen)</span></a></li>
+        <li><a href="https://trafficinfo.westjr.co.jp/sanyo.html" target="_blank" rel="noopener"><span data-lang="ja">JR西日本（山陽・北陸新幹線）</span><span data-lang="en">JR West (Sanyo / Hokuriku Shinkansen)</span></a></li>
+        <li><a href="https://traininfo.jreast.co.jp/train_info/shinkansen.aspx" target="_blank" rel="noopener"><span data-lang="ja">JR東日本（東北・上越・北陸・山形・秋田新幹線）</span><span data-lang="en">JR East (Tohoku / Joetsu / Hokuriku / Yamagata / Akita Shinkansen)</span></a></li>
+        <li><a href="https://www3.jrhokkaido.co.jp/webunkou/" target="_blank" rel="noopener"><span data-lang="ja">JR北海道（北海道新幹線）</span><span data-lang="en">JR Hokkaido (Hokkaido Shinkansen)</span></a></li>
+        <li><a href="https://www.jrkyushu.co.jp/trains/info/" target="_blank" rel="noopener"><span data-lang="ja">JR九州（九州・西九州新幹線）</span><span data-lang="en">JR Kyushu (Kyushu / Nishi-Kyushu Shinkansen)</span></a></li>
       </ul>
-      <p class="small">路線・空港データ: 国土数値情報（鉄道データ・空港データ）国土交通省 を加工して作成。地図: 国土地理院。排他的経済水域: Marine Regions（CC BY 4.0）を加工して作成。</p>
-      <p class="small">表示範囲は、陸地を含む日本の排他的経済水域（破線の内側）です。範囲は<a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">海上保安庁の領海等概念図</a>に合わせ、外国との境界が未画定の海域は中間線までとしています。範囲の外は白く表示し、飛行機と船も範囲内のものだけを表示します。</p>
-      <button id="info-close" type="button" class="primary">閉じる</button>
+      <div data-lang="ja">
+        <p class="small">路線・空港データ: 国土数値情報（鉄道データ・空港データ）国土交通省 を加工して作成。地図: 国土地理院。排他的経済水域: Marine Regions（CC BY 4.0）を加工して作成。</p>
+        <p class="small">表示範囲は、陸地を含む日本の排他的経済水域（破線の内側）です。範囲は<a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">海上保安庁の領海等概念図</a>に合わせ、外国との境界が未画定の海域は中間線までとしています。範囲の外は白く表示し、飛行機と船も範囲内のものだけを表示します。</p>
+      </div>
+      <div data-lang="en">
+        <p class="small">Railway and airport data: National Land Numerical Information (MLIT), processed. Base map: GSI Japan (place names on the base map are in Japanese). EEZ: Marine Regions (CC BY 4.0), processed.</p>
+        <p class="small">The covered area is Japan's exclusive economic zone including land (inside the dashed line), following the <a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">Japan Coast Guard's map</a>, with median lines where boundaries are not yet agreed. Outside the area is shown white, and only flights and ships inside it are shown.</p>
+      </div>
+      <div data-lang="ja" class="author">
+        <h3>作者について</h3>
+        <p>名古屋を拠点に世界を飛び回る会社員 <strong>Harry</strong>（ハリー）が個人で作っています。ブログは <a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>、ほかの手作りのアプリは <a href="https://doitmyself.net/" target="_blank" rel="noopener">DoItMyself</a> で公開しています。</p>
+        <p class="small"><a href="privacy.html" target="_blank" rel="noopener">個人情報の保存の仕組み・プライバシーポリシー</a> ・ <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">お問い合わせ</a></p>
+      </div>
+      <div data-lang="en" class="author">
+        <h3>About the author</h3>
+        <p>Made by <strong>Harry</strong>, an office worker based in Nagoya who travels the world. Blog: <a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a> (Japanese). More handmade apps are on <a href="https://doitmyself.net/" target="_blank" rel="noopener">DoItMyself</a>.</p>
+        <p class="small"><a href="privacy.html#en" target="_blank" rel="noopener">How your data is stored / Privacy policy</a> ・ <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">Contact</a></p>
+      </div>
+      <button id="info-close" type="button" class="primary"><span data-lang="ja">閉じる</span><span data-lang="en">Close</span></button>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

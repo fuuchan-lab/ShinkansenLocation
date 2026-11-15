@@ -7,6 +7,9 @@ const BOX = [[17.0, 122.0], [48.0, 158.0]];
 const MESSAGE_TYPES = ['PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport', 'ShipStaticData', 'StaticDataReport'];
 const STALE_MS = 15 * 60 * 1000;
 const isPassenger = (type) => type >= 60 && type <= 69;
+// 日本近海は受信局が少なく船種が届きにくいので、船種が不明でも船名から定期旅客船と分かる船は含める
+const PASSENGER_NAME = /FERRY|JETFOIL|JET ?FOIL|HIGH ?SPEED|フェリー|ジェットフォイル/i;
+const looksPassenger = (s, name) => (s?.type ? isPassenger(s.type) : PASSENGER_NAME.test(name));
 
 export class ShipStore {
   /** MMSI -> 位置 */
@@ -62,12 +65,13 @@ export class ShipStore {
         continue;
       }
       const s = this.statics.get(mmsi);
-      if (!s || !isPassenger(s.type)) continue;
+      const name = s?.name || p.name || '';
+      if (!looksPassenger(s, name)) continue;
       out.push([
-        mmsi, s.name || p.name || '', round(p.lat, 5), round(p.lon, 5), p.sog ?? null,
+        mmsi, name, round(p.lat, 5), round(p.lon, 5), p.sog ?? null,
         p.cog != null && p.cog < 360 ? p.cog : null,
         p.hdg != null && p.hdg < 360 ? p.hdg : null,
-        s.type, s.dest ?? '', Math.round((now - p.at) / 1000), s.len || null,
+        s?.type ?? 60, s?.dest ?? '', Math.round((now - p.at) / 1000), s?.len || null,
       ]);
     }
     return out;
@@ -132,8 +136,8 @@ export async function connect(apiKey, store, onClose) {
   return ws;
 }
 
-// 誰も見ていない状態がこれだけ続いたら接続を切る（無料枠の節約）
-const IDLE_MS = 10 * 60 * 1000;
+// 船種は約6分おきにしか届かず、日本近海では届かないことも多いので、誰も見ていなくても接続を保って
+// 旅客船の船名・船種を貯めておく（無料枠: 128MB × 24時間 ≒ 10,800 GB 秒/日。上限は 13,000）
 const ALARM_MS = 30 * 1000;
 
 /** AIS への接続を保つ Durable Object（日本全体で1つ） */
@@ -143,7 +147,6 @@ export class ShipTracker {
     this.env = env;
     this.store = new ShipStore();
     this.ws = null;
-    this.lastRequest = 0;
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get('statics');
       if (saved) this.store.statics = new Map(saved);
@@ -167,7 +170,6 @@ export class ShipTracker {
   }
 
   async fetch() {
-    this.lastRequest = Date.now();
     await this.ensureConnected();
     if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + ALARM_MS);
     const ships = this.store.passengers();
@@ -182,11 +184,6 @@ export class ShipTracker {
 
   async alarm() {
     await this.state.storage.put('statics', this.store.passengerStatics());
-    if (Date.now() - this.lastRequest > IDLE_MS) {
-      this.ws?.close();
-      this.ws = null;
-      return;
-    }
     await this.ensureConnected();
     await this.state.storage.setAlarm(Date.now() + ALARM_MS);
   }

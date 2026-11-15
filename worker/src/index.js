@@ -22,10 +22,12 @@ const CIRCLES = [
 // 日本の排他的経済水域を囲む範囲（細かい判定はフロントエンドで行う）
 const BBOX = { w: 122, s: 17, e: 158, n: 48 };
 
-// 国内線だけの会社 / 国際線だけの会社 / 両方飛ぶ会社（経路を照会する）
+// 国内線だけの会社 / 国際線だけの会社 / 両方飛ぶ会社（経路の照会を優先する）。経路が分からない便の判定に使う
 const DOMESTIC = new Set(['ADO', 'SNJ', 'SFJ', 'IBX', 'FDA', 'JTA', 'RAC', 'JAC', 'NTH', 'ORC', 'AHX', 'JLJ', 'AKX', 'TOK', 'SKY']);
 const INTERNATIONAL_JP = new Set(['TZP', 'NCA']);
 const MIXED_JP = new Set(['JAL', 'ANA', 'APJ', 'JJP']);
+// 航空会社の便のコールサイン（3文字の会社コード＋便の番号）
+const AIRLINE_FLIGHT = /^[A-Z]{3}\d/;
 
 const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), {
@@ -70,7 +72,7 @@ export default {
 async function fetchCircle(lat, lon, retry = true) {
   try {
     const r = await fetch(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`, {
-      headers: { 'user-agent': 'ShinkansenLocation (github.com/fuuchan-lab/ShinkansenLocation)' },
+      headers: { 'user-agent': 'NorimonoRadar (github.com/fuuchan-lab/norimono-radar)' },
     });
     if (!r.ok) throw new Error(String(r.status));
     return (await r.json()).ac ?? [];
@@ -111,10 +113,12 @@ async function collect(cache, ctx) {
   // 経路のキャッシュ（コールサイン -> [出発IATA, 到着IATA, 国際線?, 到着地の緯度, 経度, 便名] / null=不明）
   const routes = (await cache.match(ROUTE_CACHE_URL).then((r) => (r ? r.json() : {})).catch(() => ({})));
   const pending = [];
+  // 空港の発着一覧に出すため、航空会社の便はすべて経路を調べる（国内線・国際線の両方を飛ぶ会社を優先）
   for (const a of byHex.values()) {
     const cs = (a.flight ?? '').trim();
-    if (MIXED_JP.has(cs.slice(0, 3)) && !(cs in routes) && !pending.includes(cs)) pending.push(cs);
+    if (AIRLINE_FLIGHT.test(cs) && !(cs in routes) && !pending.includes(cs)) pending.push(cs);
   }
+  pending.sort((x, y) => Number(MIXED_JP.has(y.slice(0, 3))) - Number(MIXED_JP.has(x.slice(0, 3))));
   const looked = await Promise.all(
     pending.slice(0, ROUTE_LOOKUPS_PER_RUN).map((cs) =>
       fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`)

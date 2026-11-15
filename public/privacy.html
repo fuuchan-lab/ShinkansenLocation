@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>プライバシーポリシー / Privacy Policy — のりものレーダー</title>
+    <style>
+      body { font-family: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif; max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; line-height: 1.7; color: #1f2937; background: #f4f6fb; }
+      h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; margin-top: 2em; }
+      section { background: #fff; border-radius: 12px; padding: 8px 20px 16px; margin-bottom: 24px; }
+      nav { margin-bottom: 16px; font-size: 0.95rem; }
+      @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } }
+    </style>
+  </head>
+  <body>
+    <nav><a href="./">← のりものレーダー / Norimono Radar</a> ・ <a href="#ja">日本語</a> ・ <a href="#en">English</a></nav>
+
+    <section lang="ja" id="ja">
+      <h1>プライバシーポリシー（のりものレーダー）</h1>
+      <p>のりものレーダー（以下「本アプリ」）は、日本の新幹線（推定位置）と、日本の上空の飛行機・近海の旅客船の現在位置を地図に表示するアプリです。</p>
+      <p>最終更新：2026年11月15日</p>
+
+      <h2>ログインしなくても使えます</h2>
+      <p>地図・列車・飛行機・船・駅や空港の情報は、ログインしなくても（ゲストのまま）すべて見られます。Google アカウントでログインするのは、列車・飛行機・船のトラッキングや、お気に入りの駅を保存したい場合だけです。</p>
+
+      <h2>扱う情報</h2>
+      <ul>
+        <li><strong>Google アカウントの名前・プロフィール画像</strong>（ログインした場合のみ。ログイン中であることを画面に表示するため）</li>
+        <li><strong>登録した内容</strong>：トラッキングする列車（列車名・号数）、飛行機（便名・コールサイン・機体の識別番号）、船（MMSI・船名）、お気に入りの駅（駅名）</li>
+        <li><strong>端末の設定</strong>：表示する言語、飛行機・船・路線の表示の切り替え</li>
+        <li><strong>現在地</strong>（位置情報を許可した場合のみ）：地図に自分の位置を表示するためだけに、端末の中で使います。どこにも送信・保存しません。</li>
+      </ul>
+
+      <h2>保存先</h2>
+      <ul>
+        <li><strong>利用している端末のブラウザ内</strong>（localStorage）：端末の設定、ログイン状態、登録内容の写し（すぐに表示するため）</li>
+        <li><strong>ログインした Google アカウントの Google ドライブのアプリ専用領域</strong>（appDataFolder）：登録内容（ファイル名 user.json）。この領域は、利用者のドライブのファイル一覧には表示されず、本アプリからしか読み書きできません。他の端末でログインしても同じ登録内容を使えます。</li>
+      </ul>
+      <p>本アプリの開発者が、上記の個人の情報や登録内容を受け取ることはありません。</p>
+
+      <h2>Google のデータの利用</h2>
+      <p>本アプリは、Google ドライブのアプリ専用領域へのアクセス権（drive.appdata）と、基本的なプロフィール（名前・プロフィール画像）を利用します。ドライブのほかのファイルを読んだり変更したりすることはできません。これらは上記の保存・表示のためだけに使い、第三者に提供しません。本アプリによる Google の API から受け取った情報の使用と他のアプリへの移転は、<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API サービスのユーザーデータに関するポリシー</a>（限定使用の要件を含む）に従います。</p>
+
+      <h2>外部のサービスとの通信</h2>
+      <p>地図や情報を表示するため、ブラウザから次のサービスに接続します。どの通信にも、利用者の登録内容や Google アカウントの情報、現在地は含みません（各サービスには、通常の通信と同じく IP アドレスなどが届きます）。</p>
+      <ul>
+        <li>国土地理院（地図の画像）、OpenFreeMap（地図の文字のフォント）</li>
+        <li>飛行機・旅客船の位置を中継するサーバー（開発者が Cloudflare Workers で運用）。公開されている adsb.lol・adsbdb・aisstream.io のデータをまとめて返すだけで、利用者を識別する情報は記録しません。</li>
+        <li>Google（ログインと、Google ドライブへの保存。ログインした場合のみ）</li>
+      </ul>
+
+      <h2>広告・アクセス解析</h2>
+      <p>本アプリは、広告やアクセス解析のツールを使っていません。</p>
+
+      <h2>削除</h2>
+      <ul>
+        <li>登録の解除：各画面やマイリストで ★ を押すと、端末と Google ドライブから削除されます。</li>
+        <li>ログアウト：端末に保存したログイン状態と登録内容の写しを削除し、本アプリへのアクセス権を取り消します（Google ドライブの登録内容は残ります）。</li>
+        <li>すべての削除：Google ドライブの「設定」→「アプリの管理」で本アプリの「非表示のアプリデータを削除」を選ぶと、ドライブの登録内容をすべて削除できます。<a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google アカウントのサードパーティ接続</a>から、本アプリへのアクセスを取り消すこともできます。</li>
+      </ul>
+
+      <h2>今後の変更</h2>
+      <p>今後、利用者が自分の API キーなどを登録できるようにする予定です。その場合も保存先は上記の Google ドライブのアプリ専用領域で、追加する内容はこのページに追記してからお知らせします。</p>
+
+      <h2>作者について</h2>
+      <p><strong>Harry</strong>（ハリー）：名古屋を拠点に世界を飛び回る会社員。何でも自分で探し、作り、直すまで納得しないタイプで、ブログ「<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>」（hvd.jp）で、デジタルガジェットや DIY のデジタル生活を紹介しています。</p>
+      <p><strong>DoItMyself</strong>（<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>）：Harry が「とにかく自分でやってみる」で作ったアプリを公開している場所です。展示会のリード記録「LeadLog」、日常の発見を地図に残す「CapLog」、「CleanLog」、「頭痛ログ」などを公開しています。</p>
+
+      <h2>お問い合わせ</h2>
+      <p>本アプリについてのお問い合わせは、<a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub の Issues</a> へお寄せください。</p>
+    </section>
+
+    <section lang="en" id="en">
+      <h1>Privacy Policy (Norimono Radar)</h1>
+      <p>Norimono Radar ("the app") shows the current positions of Japan's Shinkansen trains (estimated), flights over Japan and ferries in nearby waters on a map.</p>
+      <p>Last updated: November 15, 2026</p>
+
+      <h2>No sign-in needed to view</h2>
+      <p>Everything on the map — trains, flights, ferries, station and airport information — can be viewed without signing in (as a guest). Signing in with Google is only needed to track trains, flights and ferries or to save favorite stations.</p>
+
+      <h2>Information handled</h2>
+      <ul>
+        <li><strong>Your Google account name and profile picture</strong> (only when signed in, to show who is signed in)</li>
+        <li><strong>Items you save</strong>: trains you track (train name and number), flights (flight number, callsign, aircraft identifier), ships (MMSI and name) and favorite stations (station name)</li>
+        <li><strong>Device settings</strong>: display language and which flights, ships and lines are shown</li>
+        <li><strong>Your location</strong> (only if you allow it): used only on your device to show where you are on the map. It is never sent or stored anywhere.</li>
+      </ul>
+
+      <h2>Where data is stored</h2>
+      <ul>
+        <li><strong>In the browser on your device</strong> (localStorage): device settings, sign-in state and a copy of your saved items (to show them quickly)</li>
+        <li><strong>In the private app-data area of your Google Drive</strong> (appDataFolder): your saved items (file name user.json). This area does not appear in your Drive file list and only this app can read or write it. Signing in on another device gives you the same list.</li>
+      </ul>
+      <p>The developer never receives your personal information or saved items.</p>
+
+      <h2>Use of Google data</h2>
+      <p>The app uses access to its own app-data area of Google Drive (drive.appdata) and your basic profile (name and picture). It cannot read or change any other files in your Drive. These are used only for the storage and display described above and are not shared with third parties. The app's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+      <h2>External services</h2>
+      <p>To show the map and information, your browser connects to the following services. None of these requests include your saved items, Google account information or location (each service receives your IP address and similar details, as with any web request).</p>
+      <ul>
+        <li>GSI Japan (map images) and OpenFreeMap (map label fonts)</li>
+        <li>A relay server for flight and ferry positions, run by the developer on Cloudflare Workers. It only combines public data from adsb.lol, adsbdb and aisstream.io and does not record anything that identifies users.</li>
+        <li>Google (sign-in and saving to Google Drive, only when signed in)</li>
+      </ul>
+
+      <h2>Advertising and analytics</h2>
+      <p>The app uses no advertising or analytics tools.</p>
+
+      <h2>Deletion</h2>
+      <ul>
+        <li>Remove an item: press ★ on its screen or in My list to delete it from your device and Google Drive.</li>
+        <li>Sign out: deletes the sign-in state and the copy of your items on the device and revokes the app's access (items in Google Drive remain).</li>
+        <li>Delete everything: in Google Drive, open Settings → Manage apps and choose "Delete hidden app data" for this app. You can also remove the app's access from <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">third-party connections in your Google Account</a>.</li>
+      </ul>
+
+      <h2>Future changes</h2>
+      <p>We plan to let users register their own API keys and similar settings. These will also be stored in the private app-data area of your Google Drive, and this page will be updated before such a feature is released.</p>
+
+      <h2>About the author</h2>
+      <p><strong>Harry</strong>: an office worker based in Nagoya who travels the world and is never satisfied until things are found, built or fixed by hand. Harry writes about digital gadgets and a DIY digital life on the blog "<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>" (hvd.jp, in Japanese).</p>
+      <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes the apps he made himself, including LeadLog (trade-show lead notes), CapLog (everyday discoveries on a map), CleanLog and a headache log.</p>
+
+      <h2>Contact</h2>
+      <p>For questions about the app, please use <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+    </section>
+  </body>
+</html>

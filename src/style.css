@@ -36,6 +36,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
   box-shadow: var(--shadow);
 }
 .brand { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+/* 狭い画面: アプリ名が入りきらなければ「推定」のバッジを下の行へ回す */
+@media (max-width: 400px) {
+  .topbar { gap: 6px; padding-left: 10px; }
+  .brand { flex-wrap: wrap; row-gap: 1px; }
+  .brand h1 { font-size: 15px; }
+}
 .brand h1 { margin: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #fff3cd; color: #7a5a00; border: 1px solid #f0d78a; white-space: nowrap; }
 .clock {
@@ -190,6 +196,16 @@ body.has-sheet .maplibregl-ctrl-bottom-right { display: none; }
 .dep .dest { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dep .dest small { font-size: 10px; padding: 0 4px; border: 1px solid #cfd4da; border-radius: 4px; }
 .dep .live { font-size: 11px; color: #fff; background: #12a150; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+/* 空港の発着（駅の時刻表と同じ見た目） */
+.sheet-head .ap-icon {
+  width: 24px; height: 24px; align-self: center; border-radius: 50%; background: #5b6b7f;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg transform='translate(12 12) rotate(45) scale(.62) translate(-12 -12)'%3E%3Cpath fill='%23fff' d='M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.flights h3 { margin: 0; padding: 6px 8px; font-size: 13px; background: #f3f5f7; color: #4a5260; border-bottom: 1px solid var(--line); }
+.flights ul { list-style: none; margin: 0; padding: 0; }
+.flights li { border-bottom: 1px solid var(--line); }
+.dep .tt { flex: none; width: 6ch; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
+.dep .alt { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .now-line { position: relative; height: 0; border-top: 2px solid #e53935; margin: 4px 0; }
 .now-line span {
   position: absolute; right: 6px; top: -10px; font-size: 11px; font-weight: 700; color: #fff;
@@ -221,7 +237,45 @@ body.has-sheet .maplibregl-ctrl-bottom-right { display: none; }
 
 [hidden] { display: none !important; }
 
+/* 日本語・英語の両方を書いた固定の文言は、表示中の言語の方だけ出す */
+html:not([lang='en']) [data-lang='en'], html[lang='en'] [data-lang='ja'] { display: none !important; }
+.lang-switch { display: flex; gap: 6px; margin-bottom: 12px; }
+.lang-switch button { flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+.lang-switch button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .maplibregl-ctrl-bottom-right { margin-bottom: var(--safe-bottom); }
+
+/* ---- マイリスト・ログイン ---- */
+.my-btn { display: grid; place-items: center; padding: 0; overflow: hidden; color: var(--accent); font-family: inherit; font-style: normal; }
+.my-btn img { width: 100%; height: 100%; object-fit: cover; }
+.my-btn.signed-in { border: 2px solid #f5a200; }
+.fav-btn {
+  margin-left: auto; align-self: center; flex: none;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+}
+.fav-btn span { font-size: 14px; color: #c2c8cf; }
+.fav-btn.on { border-color: #f5a200; background: #fff8e1; color: #7a5a00; font-weight: 600; }
+.fav-btn.on span { color: #f5a200; }
+.fav-btn.icon { margin: 0; padding: 4px 9px; font-size: 16px; color: #f5a200; }
+.my .account { display: flex; align-items: center; gap: 10px; padding: 10px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.my .account img { width: 36px; height: 36px; border-radius: 50%; }
+.my .account div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.my .account > button:not(.primary) { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+.my .account.guest { display: block; }
+.my h3 { margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+.my-list { list-style: none; margin: 0; padding: 0; }
+.my-list li { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); }
+.my-item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding: 8px 2px; border: none; background: none; text-align: left; }
+.my-item span { font-size: 12px; color: var(--muted); }
+.my-item:disabled { cursor: default; opacity: 0.6; }
+.my .notice { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #fff3cd; color: #6b4f00; }
+.my #my-close { margin-top: 10px; }
+.my .privacy-link { margin: 12px 0 0; }
+.my .privacy-link a, .author a { color: #0b5cad; }
+.author { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.author h3 { margin: 0 0 6px; font-size: 14px; }
 
 /* ---- PC・タブレット ---- */
 @media (min-width: 768px) {
