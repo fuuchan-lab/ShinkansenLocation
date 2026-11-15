@@ -1301,7 +1301,8 @@ function setupUser() {
   const btn = $('my-btn');
   btn.hidden = !GOOGLE_CLIENT_ID;
   // ゲストはそのままログイン、ログイン中はアカウントのダイアログ（LeadLog と同じ）
-  if (GOOGLE_CLIENT_ID) preloadGoogle().catch(() => {});
+  // ログインの部品（約100KB）は、地図の画像・飛行機・船のデータを先に取れるよう少し遅らせて読み込む
+  if (GOOGLE_CLIENT_ID) setTimeout(() => preloadGoogle().catch(() => {}), 3000);
   btn.addEventListener('click', () => (user.account ? openAccount() : signIn()));
   $('my-close').addEventListener('click', () => togglePanel('my-panel', false));
   onUserChange(() => {
