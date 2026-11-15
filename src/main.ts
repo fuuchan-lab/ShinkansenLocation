@@ -38,9 +38,9 @@ const SEA = '#bed2ff'; // 地理院タイル（淡色地図）の海の色
 // 配色ごとの色。ダークモードは地図の画像を反転して暗くし、範囲の外は海より暗い色にする
 const PALETTE = {
   light: { sea: SEA, outside: '#ffffff', eez: '#3d6fb6', casing: '#ffffff', text: '#222222', textMuted: '#4a5568', halo: '#ffffff',
-    ship: SHIP_COLOR, plane: '#8a6a00', planeIntl: '#d6247e' },
+    ship: SHIP_COLOR, plane: '#8a6a00', planeIntl: '#d6247e', selectedFill: 'rgba(0,0,0,0)' },
   dark: { sea: '#1a2332', outside: '#0b0f14', eez: '#7fa8e0', casing: '#0b0f14', text: '#e6edf3', textMuted: '#aab4c2', halo: '#0b0f14',
-    ship: '#5fc4ff', plane: '#ffd84d', planeIntl: '#ff8fc4' },
+    ship: '#5fc4ff', plane: '#ffd84d', planeIntl: '#ff8fc4', selectedFill: 'rgba(255,255,255,0.6)' },
 };
 
 const style: StyleSpecification = {
@@ -365,6 +365,8 @@ function applyMapTheme() {
   map.setPaintProperty('mask', 'fill-color', c.outside);
   map.setPaintProperty('eez-line', 'line-color', c.eez);
   map.setPaintProperty('line-casing', 'line-color', c.casing);
+  map.setPaintProperty('ship-selected', 'circle-color', c.selectedFill);
+  map.setPaintProperty('aircraft-selected', 'circle-color', c.selectedFill);
   const text = (id: string, color: maplibregl.ExpressionSpecification | string) => {
     map.setPaintProperty(id, 'text-color', color);
     map.setPaintProperty(id, 'text-halo-color', c.halo);
@@ -475,11 +477,12 @@ function addLayers() {
       'icon-ignore-placement': true,
     },
   });
+  // 選んだ船・飛行機の丸はアイコンの下に描く（ダークでは中を明るくする。列車と同じ）
   map.addLayer({
     id: 'ship-selected', type: 'circle', source: 'ships',
     filter: ['==', ['get', 'mmsi'], -1],
-    paint: { 'circle-radius': 15, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#111', 'circle-stroke-width': 2.5 },
-  });
+    paint: { 'circle-radius': 15, 'circle-color': PALETTE.light.selectedFill, 'circle-stroke-color': '#111', 'circle-stroke-width': 2.5 },
+  }, 'ships');
   map.addLayer({
     id: 'aircraft', type: 'symbol', source: 'aircraft',
     layout: {
@@ -512,8 +515,8 @@ function addLayers() {
   map.addLayer({
     id: 'aircraft-selected', type: 'circle', source: 'aircraft',
     filter: ['==', ['get', 'hex'], ''],
-    paint: { 'circle-radius': 15, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#111', 'circle-stroke-width': 2.5 },
-  });
+    paint: { 'circle-radius': 15, 'circle-color': PALETTE.light.selectedFill, 'circle-stroke-color': '#111', 'circle-stroke-width': 2.5 },
+  }, 'aircraft');
   map.addLayer({
     id: 'train-selected', type: 'circle', source: 'trains',
     filter: ['==', ['get', 'id'], ''],
