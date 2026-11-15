@@ -101,7 +101,7 @@ const ja = {
   aisTitle: 'API キー：飛行機・旅客船（aisstream.io）',
   aisIntro: 'ゲストは、飛行機と旅客船を最初の5分だけ見られます。続けて見るには、あなた自身の aisstream.io の API キー（無料）が必要です。キーを登録すると、旅客船はあなたのブラウザから aisstream.io へ直接つないで受信します。',
   aisSteps: [
-    '<a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> を開き、GitHub アカウントでサインインする（無料）。',
+    '<a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> を開き、「Continue with GitHub」を押す（無料）。aisstream.io は GitHub のアカウントでサインインする仕組みです。GitHub のアカウントがなくても、GitHub のログイン画面で「<strong>Continue with Google</strong>」（または「Continue with Apple」）を選べば、Google のアカウントで作れます。',
     '画面の「API Keys」で「Create New API Key」を押す。',
     '作られたキーをコピーし、下の欄に貼り付けて「保存してテスト」を押す。',
   ],
@@ -281,7 +281,7 @@ const english: typeof ja = {
   aisTitle: 'API key: flights and ferries (aisstream.io)',
   aisIntro: 'Guests can see flights and ferries for the first 5 minutes. To keep viewing them, you need your own aisstream.io API key (free). With your key, ferries are received directly from aisstream.io in your browser.',
   aisSteps: [
-    'Open <a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> and sign in with your GitHub account (free).',
+    'Open <a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> and press "Continue with GitHub" (free). aisstream.io signs you in with a GitHub account. If you don\'t have one, choose "<strong>Continue with Google</strong>" (or "Continue with Apple") on GitHub\'s sign-in page to create one with your Google account.',
     'Under "API Keys", press "Create New API Key".',
     'Copy the key, paste it below and press "Save and test".',
   ],
