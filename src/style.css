@@ -298,6 +298,27 @@ html:not([lang='en']) [data-lang='en'], html[lang='en'] [data-lang='ja'] { displ
 .my .notice { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #fff3cd; color: #6b4f00; }
 .my #my-close { margin-top: 10px; }
 .my .privacy-link { margin: 12px 0 0; }
+.my #my-close { margin-top: 12px; }
+.keys { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+.keys summary { cursor: pointer; padding: 8px 0; font-weight: 600; font-size: 14px; }
+.keys ol { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.7; }
+.keys a { color: var(--link); }
+.keys input[type='password'], .keys input[type='text'] {
+  width: 100%; margin-bottom: 8px; padding: 8px 10px; font: inherit; font-size: 14px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg);
+}
+.keys .key-actions { display: flex; gap: 8px; }
+.keys .key-actions .primary { flex: 1; width: auto; }
+.keys .key-actions button:not(.primary) { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+.keys .key-state { font-size: 13px; padding: 6px 0; }
+.keys .key-state.ok { color: #12a150; }
+.keys .key-state.err { color: #d93025; }
+.sched-status { flex: none; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.sched-status.delayed { color: #d93025; font-weight: 600; }
+.sched-status.cancel { color: #d93025; text-decoration: line-through; }
+.need-key { margin: 10px 8px; padding: 10px 12px; border-radius: 10px; background: var(--surface); font-size: 13px; }
+.need-key button { margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+.dep.live-match .nm::after { content: '✈'; margin-left: 4px; font-size: 11px; color: #12a150; }
 .my .privacy-link a, .author a { color: var(--link); }
 .request { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
 .request h3 { margin: 0 0 6px; font-size: 14px; }

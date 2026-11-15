@@ -66,7 +66,12 @@
       <button id="time-now" type="button" class="primary"><span data-lang="ja">現在時刻に戻す</span><span data-lang="en">Back to now</span></button>
     </div>
 
-    <div id="my-panel" class="popover my" hidden></div>
+    <!-- my-main は 1 分ごとなどに描き直す。my-keys は入力中の内容を消さないよう、別に描く -->
+    <div id="my-panel" class="popover my" hidden>
+      <div id="my-main"></div>
+      <div id="my-keys"></div>
+      <button type="button" id="my-close" class="primary"></button>
+    </div>
 
     <div id="info-panel" class="popover info" hidden>
       <div class="lang-switch" role="group" aria-label="言語 / Language">

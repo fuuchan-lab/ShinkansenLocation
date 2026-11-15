@@ -20,10 +20,13 @@ export interface Settings {
   international?: boolean;
   ships?: boolean;
 }
-export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings }
+/** 個人の API キー（利用者が自分で契約・登録する）。ログイン中は Google ドライブのアプリ専用領域に、ゲストはこの端末だけに保存する */
+export type ApiKeyName = 'aerodatabox';
+export type ApiKeys = Partial<Record<ApiKeyName, string>>;
+export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings; keys: ApiKeys }
 export interface Account { name: string; picture: string }
 
-const emptyData = (): UserData => ({ version: 1, favorites: { train: [], aircraft: [], ship: [], station: [] }, settings: {} });
+const emptyData = (): UserData => ({ version: 1, favorites: { train: [], aircraft: [], ship: [], station: [] }, settings: {}, keys: {} });
 
 const KEY = { token: 'auth.token', account: 'auth.account', data: 'user.data' };
 function load<T>(key: string): T | null {
@@ -152,7 +155,7 @@ async function readRemote(): Promise<UserData | null> {
   fileId = list.files[0]?.id ?? null;
   if (!fileId) return null;
   const d = (await (await api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json()) as Partial<UserData>;
-  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites }, settings: { ...d.settings } };
+  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites }, settings: { ...d.settings }, keys: { ...d.keys } };
 }
 
 async function writeRemote(d: UserData) {
@@ -251,6 +254,29 @@ export function saveSettings(patch: Settings): boolean {
   emit();
   persist();
   return true;
+}
+
+const localKey = (name: ApiKeyName) => `key.${name}`;
+
+/** 登録した API キー（ログイン中はドライブの内容、ゲストはこの端末の内容）。なければ空 */
+export function getApiKey(name: ApiKeyName): string {
+  return (user.account ? user.data.keys[name] : load<string>(localKey(name))) ?? '';
+}
+
+/** API キーを登録・削除する（空なら削除）。タップの処理から呼ぶ */
+export function setApiKey(name: ApiKeyName, value: string) {
+  const v = value.trim();
+  if (user.account) {
+    const keys = { ...user.data.keys };
+    if (v) keys[name] = v;
+    else delete keys[name];
+    setData({ ...user.data, keys });
+    emit();
+    persist();
+  } else {
+    store(localKey(name), v || null);
+    emit();
+  }
 }
 
 function persist() {

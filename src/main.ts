@@ -10,9 +10,10 @@ import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
 import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
 import { airportCode } from './names-en';
+import { fetchSchedule, ScheduleError, SCHEDULE_KEY, testKey, type Scheduled, type ScheduleErrorKind } from './schedule';
 import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
 import { effectiveTheme, getTheme, onThemeChange, setTheme, type Theme } from './theme';
-import { GOOGLE_CLIENT_ID, isFav, onUserChange, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
+import { getApiKey, GOOGLE_CLIENT_ID, isFav, onUserChange, setApiKey, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -767,6 +768,7 @@ function openAirport(name: string) {
   sheet = { kind: 'airport', name, intl };
   follow = false;
   scrollToNow = true;
+  loadSchedule(code);
   const ap = airports.find((a) => a.name === name);
   showSheet(ap ? [ap.lng, ap.lat] : undefined, map.getZoom());
 }
@@ -1025,12 +1027,36 @@ function airportFlights(code: string) {
 
 const ARRIVAL_WINDOW_MIN = 120;
 
+/** 空港ごとの発着予定（API キーを登録しているときだけ取得する） */
+const schedules = new Map<string, { dep?: Scheduled[]; arr?: Scheduled[]; error?: ScheduleErrorKind; detail?: string; loading: boolean }>();
+async function loadSchedule(code: string) {
+  const key = getApiKey(SCHEDULE_KEY);
+  if (!key || !code) return;
+  schedules.set(code, { loading: true });
+  const done = (v: { dep?: Scheduled[]; arr?: Scheduled[]; error?: ScheduleErrorKind; detail?: string }) => {
+    schedules.set(code, { ...v, loading: false });
+    if (sheet?.kind === 'airport' && airportCode(sheet.name) === code) renderSheet();
+  };
+  try {
+    const [dep, arr] = await Promise.all([fetchSchedule(code, 'dep', key), fetchSchedule(code, 'arr', key)]);
+    done({ dep, arr });
+  } catch (err) {
+    done(err instanceof ScheduleError ? { error: err.kind, detail: err.kind === 'other' ? err.message : '' } : { error: 'other' });
+  }
+}
+
 function airportSheet(name: string, intl: boolean): string {
   const tx = t();
   const code = airportCode(name);
   const flights = code ? airportFlights(code) : [];
   const now = jstNowMinutes();
-  const count = (i: boolean) => flights.filter((f) => f.a.intl === i).length;
+  // 利用者が API キーを登録していれば、時刻表（出発は今後12時間・到着は前後2時間）を出す。なければ、いま飛んでいる便だけ
+  const key = getApiKey(SCHEDULE_KEY);
+  const sched = code ? schedules.get(code) : undefined;
+  const hasSched = !!(sched && (sched.dep || sched.arr));
+  const count = (i: boolean) => hasSched
+    ? [...(sched!.dep ?? []), ...(sched!.arr ?? [])].filter((x) => x.intl === i).length
+    : flights.filter((f) => f.a.intl === i).length;
   const tab = (i: boolean, label: string) =>
     `<button type="button" class="tab ${i === intl ? 'on' : ''}" data-intl="${i ? 1 : 0}"><b>${label}</b><span>${count(i)}</span></button>`;
 
@@ -1055,8 +1081,37 @@ function airportSheet(name: string, intl: boolean): string {
   // 到着予定は 2 時間以内を早い順、出発した便（飛行中）は新しい順。出発した便は飛行中のものだけなので 12 時間以内に収まる
   const arrivals = list.filter((f) => f.arr && (f.minutes ?? 0) <= ARRIVAL_WINDOW_MIN).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
   const departures = list.filter((f) => !f.arr).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
+  const live = section(tx.arriving, arrivals) + section(tx.departed, departures) || `<p class="small">${tx.noFlights}</p>`;
+
+  // 時刻表の 1 行。飛行中の便と便名が合えば、タップで現在位置へ
+  const hhmm = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(11, 16);
+  const schedRow = (s: Scheduled) => {
+    const num = s.number.replace(/\s/g, '');
+    const a = aircraft.find((x) => x.flight === num || x.callsign === num);
+    const late = Math.round((s.time - s.scheduled) / 60000);
+    const status = tx.statuses[s.status] ?? s.status;
+    const cls = s.status === 'Canceled' ? 'cancel' : s.status === 'Delayed' || late >= 10 ? 'delayed' : '';
+    return `
+      <li>
+        <button type="button" class="dep ${a ? 'live-match' : ''}" ${a ? `data-aircraft="${a.hex}"` : 'disabled'}>
+          <span class="tt">${hhmm(s.time)}</span>
+          <span class="nm" style="--c:${s.intl ? '#d6247e' : '#8a6a00'}">${escapeHtml(s.number)}</span>
+          <span class="dest">${escapeHtml(s.otherName)} ${escapeHtml(s.otherCode)}${s.model ? ` <small>${escapeHtml(s.model)}</small>` : ''}</span>
+          <span class="sched-status ${cls}">${escapeHtml(status)}${late >= 10 ? ` +${late}` : ''}${a ? ` · ${tx.inFlight}` : ''}</span>
+        </button>
+      </li>`;
+  };
+  const schedSection = (title: string, rows: Scheduled[] | undefined) => {
+    const items = (rows ?? []).filter((x) => x.intl === intl);
+    return `<section class="flights"><h3>${title}</h3>${items.length ? `<ul>${items.map(schedRow).join('')}</ul>` : `<p class="small" style="padding:8px">${tx.schedEmpty}</p>`}</section>`;
+  };
+  let notice = '';
+  if (code && !key) notice = `<div class="need-key"><p>${tx.needKey}</p><button type="button" data-open-keys>${tx.needKeyButton}</button></div>`;
+  else if (code && sched?.loading) notice = `<p class="small" style="padding:8px">${tx.schedLoading}</p>`;
+  else if (code && sched?.error) notice = `<p class="small" style="padding:8px;color:#d93025">${tx.keyErrors[sched.error]}${sched.detail ? ` (${escapeHtml(sched.detail)})` : ''}</p>`;
   const body = !code ? `<p class="small">${tx.noCode}</p>`
-    : section(tx.arriving, arrivals) + section(tx.departed, departures) || `<p class="small">${tx.noFlights}</p>`;
+    : hasSched ? notice + schedSection(tx.schedDepartures, sched!.dep) + schedSection(tx.schedArrivals, sched!.arr)
+    : notice + live;
 
   return `
     <div class="sticky">
@@ -1068,8 +1123,7 @@ function airportSheet(name: string, intl: boolean): string {
       ${code ? `<div class="tabs">${tab(false, tx.domestic)}${tab(true, tx.international)}</div>` : ''}
     </div>
     <div class="timetable">${body}</div>
-    ${arrivals.length ? `<p class="small">${tx.etaNote}</p>` : ''}
-    <p class="small">${tx.airportNote}</p>
+    ${hasSched ? `<p class="small">${tx.schedNote}</p>` : `${arrivals.length ? `<p class="small">${tx.etaNote}</p>` : ''}<p class="small">${tx.airportNote}</p>`}
     ${code ? `<div class="actions"><a href="https://www.flightradar24.com/data/airports/${code.toLowerCase()}" target="_blank" rel="noopener">${tx.schedules('Flightradar24')}</a></div>` : ''}`;
 }
 
@@ -1114,6 +1168,9 @@ function bindSheet() {
   body.querySelectorAll<HTMLButtonElement>('[data-aircraft]').forEach((b) =>
     b.addEventListener('click', () => openAircraft(b.dataset.aircraft!)),
   );
+  body.querySelectorAll<HTMLButtonElement>('[data-open-keys]').forEach((b) =>
+    b.addEventListener('click', () => openMyPanel('', true)),
+  );
 }
 
 // ---- マイリスト（ログインと、登録した列車・飛行機・船・駅） ----
@@ -1121,15 +1178,17 @@ const USER_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="
 let myNotice = '';
 
 function setupUser() {
+  // ログイン機能（GOOGLE_CLIENT_ID）がなくても、個人設定（API キー）のためにボタンは出す
   const btn = $('my-btn');
-  if (!GOOGLE_CLIENT_ID) return; // ログイン機能を設定していない
   btn.hidden = false;
   btn.addEventListener('click', () => ($('my-panel').hidden ? openMyPanel() : togglePanel('my-panel', false)));
+  $('my-close').addEventListener('click', () => togglePanel('my-panel', false));
   onUserChange(() => {
     renderMyButton();
     drawStations();
     renderSheet();
     renderMyPanel();
+    renderKeys();
     applySavedSettings();
     renderSettingsNote();
   });
@@ -1140,6 +1199,63 @@ function setupUser() {
   });
   renderMyButton();
   refreshUser();
+}
+
+// ---- 個人設定：API キー（空港の発着予定。利用者が自分のキーを登録する） ----
+let keysOpen = false;
+let keyMessage: { kind: 'ok' | 'err' | 'busy'; text: string } | null = null;
+
+/** 入力中の内容が消えないよう、自分の操作のときだけ描き直す（1 分ごとの描き直しとは別にしている） */
+function renderKeys() {
+  const el = $('my-keys');
+  const tx = t();
+  const key = getApiKey(SCHEDULE_KEY);
+  const where = user.account ? tx.keysWhereSignedIn : tx.keysWhereGuest;
+  const typed = (el.querySelector<HTMLInputElement>('#key-input')?.value) ?? '';
+  el.innerHTML = `
+    <details class="keys" ${keysOpen ? 'open' : ''}>
+      <summary>${tx.keysTitle}</summary>
+      <p class="small">${tx.keysIntro}</p>
+      <ol>${tx.keysSteps.map((s) => `<li>${s}</li>`).join('')}</ol>
+      <p class="small">${tx.keysNote}</p>
+      ${key ? `<p class="key-state ok">${tx.keyRegistered(escapeHtml(key.slice(-4)))}</p>` : ''}
+      <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="${tx.keyPlaceholder}" value="${escapeHtml(typed)}">
+      <div class="key-actions">
+        <button type="button" id="key-save" class="primary" ${keyMessage?.kind === 'busy' ? 'disabled' : ''}>${tx.keySaveTest}</button>
+        ${key ? `<button type="button" id="key-delete">${tx.keyDelete}</button>` : ''}
+      </div>
+      ${keyMessage ? `<p class="key-state ${keyMessage.kind === 'ok' ? 'ok' : keyMessage.kind === 'err' ? 'err' : ''}">${escapeHtml(keyMessage.text)}</p>` : ''}
+      <p class="small">${where} ${tx.keysPrivacy}</p>
+    </details>`;
+  el.querySelector('details')!.addEventListener('toggle', (e) => (keysOpen = (e.target as HTMLDetailsElement).open));
+  el.querySelector('#key-save')!.addEventListener('click', async () => {
+    const value = (el.querySelector<HTMLInputElement>('#key-input')!.value || key).trim();
+    if (!value) return;
+    keyMessage = { kind: 'busy', text: tx.keyTesting };
+    renderKeys();
+    try {
+      await testKey(value);
+      setApiKey(SCHEDULE_KEY, value);
+      schedules.clear();
+      keyMessage = { kind: 'ok', text: tx.keyOk };
+    } catch (err) {
+      const kind = err instanceof ScheduleError ? err.kind : 'other';
+      keyMessage = { kind: 'err', text: `${tx.keyErrors[kind]}${kind === 'other' && err instanceof Error ? ` (${err.message})` : ''}` };
+    }
+    (el.querySelector<HTMLInputElement>('#key-input')!).value = '';
+    renderKeys();
+    if (sheet?.kind === 'airport') {
+      loadSchedule(airportCode(sheet.name));
+      renderSheet();
+    }
+  });
+  el.querySelector('#key-delete')?.addEventListener('click', () => {
+    setApiKey(SCHEDULE_KEY, '');
+    schedules.clear();
+    keyMessage = null;
+    renderKeys();
+    renderSheet();
+  });
 }
 
 /** ログイン中に保存した設定（言語・表示・レイヤー）を、この端末にも反映する。違うものだけ変えるので何度呼んでもよい */
@@ -1195,16 +1311,19 @@ function renderMyButton() {
   btn.setAttribute('aria-label', a ? `${t().myList} (${a.name})` : t().myListLogin);
 }
 
-function openMyPanel(notice = '') {
+function openMyPanel(notice = '', showKeys = false) {
   myNotice = notice;
-  preloadGoogle().catch(() => {}); // ログインのポップアップをタップ直後に開けるように
+  if (GOOGLE_CLIENT_ID) preloadGoogle().catch(() => {}); // ログインのポップアップをタップ直後に開けるように
+  if (showKeys) keysOpen = true;
   togglePanel('my-panel', true);
   renderMyPanel();
+  renderKeys();
+  if (showKeys) $('my-keys').scrollIntoView({ block: 'nearest' });
 }
 
 function renderMyPanel() {
-  const el = $('my-panel');
-  if (el.hidden) return;
+  if ($('my-panel').hidden) return;
+  const el = $('my-main');
   const a = user.account;
   const fav = user.data.favorites;
   const tx = t();
@@ -1216,8 +1335,8 @@ function renderMyPanel() {
       </div>`
     : `<div class="account guest">
         <p>${tx.guest}</p>
-        <p class="small">${tx.guestNote}</p>
-        <button type="button" id="sign-in" class="primary" ${user.busy ? 'disabled' : ''}>${user.busy ? tx.signingIn : tx.signIn}</button>
+        ${GOOGLE_CLIENT_ID ? `<p class="small">${tx.guestNote}</p>
+        <button type="button" id="sign-in" class="primary" ${user.busy ? 'disabled' : ''}>${user.busy ? tx.signingIn : tx.signIn}</button>` : ''}
       </div>`;
   const message = user.error || myNotice;
 
@@ -1256,15 +1375,14 @@ function renderMyPanel() {
     ${account}
     ${message ? `<p class="notice">${escapeHtml(message)}</p>` : ''}
     ${a ? lists || `<p class="small">${tx.empty}</p>` : ''}
-    <p class="small privacy-link"><a href="${tx.privacyUrl}" target="_blank" rel="noopener">${tx.privacy}</a></p>
-    <button type="button" id="my-close" class="primary">${tx.close}</button>`;
+    <p class="small privacy-link"><a href="${tx.privacyUrl}" target="_blank" rel="noopener">${tx.privacy}</a></p>`;
+  $('my-close').textContent = tx.close;
 
   el.querySelector('#sign-in')?.addEventListener('click', () => {
     myNotice = '';
     signIn();
   });
   el.querySelector('#sign-out')?.addEventListener('click', () => signOut());
-  el.querySelector('#my-close')!.addEventListener('click', () => togglePanel('my-panel', false));
   el.querySelectorAll<HTMLButtonElement>('[data-open]').forEach((b) =>
     b.addEventListener('click', () => {
       const [kind, id] = b.dataset.open!.split(/:(.*)/s);
@@ -1312,7 +1430,8 @@ function applyLanguage(l: Lang) {
   buildLineFilter();
   drawStations();
   drawAirports();
-  if (GOOGLE_CLIENT_ID) renderMyButton();
+  renderMyButton();
+  renderKeys();
   refresh();
 }
 document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) =>
