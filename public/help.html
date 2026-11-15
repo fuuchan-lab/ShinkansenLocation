@@ -39,7 +39,7 @@
         <li><a href="#ja-info">列車・駅・空港・飛行機・船</a></li>
         <li><a href="#ja-login">ログインとマイリスト</a></li>
         <li><a href="#ja-settings">設定</a></li>
-        <li><a href="#ja-keys">空港の時刻表（API キー・任意）</a></li>
+        <li><a href="#ja-airport">空港の発着</a></li>
         <li><a href="#ja-data">データについて</a></li>
         <li><a href="#ja-official">公式の運行情報</a></li>
         <li><a href="#ja-author">作者について・お問い合わせ</a></li>
@@ -68,14 +68,14 @@
         <li><strong>検索</strong>：駅・空港（空港コードも可）・走っている列車（のぞみ1 など）・便名（NH20 など）・船名で探し、タップするとその場所へ移ります。</li>
         <li><strong>現在地</strong>：自分のいる場所へ移ります（位置情報の許可が必要です）。</li>
         <li><strong>マイリスト</strong>：トラッキング中の列車・飛行機・船と、お気に入りの駅の一覧です（ログインが必要）。</li>
-        <li><strong>設定</strong>：アカウント、言語、表示モード（ライト・ダーク）、API キー、いまの設定、このヘルプ。</li>
+        <li><strong>設定</strong>：アカウント、言語、表示モード（ライト・ダーク）、いまの設定、このヘルプ。</li>
       </ul>
 
       <h2 id="ja-info">4. 列車・駅・空港・飛行機・船</h2>
       <ul>
         <li><strong>列車</strong>をタップ：行先・次の停車駅・停車駅の時刻・推定速度。列車を追いかけて表示します。駅名をタップすると、その駅の時刻表へ。</li>
         <li><strong>駅</strong>をタップ：その駅の時刻表（下り・上り）。今の時間帯に色が付き、今の時刻に赤い線が出ます。</li>
-        <li><strong>空港</strong>をタップ：国内線・国際線のタブで、発着の便を表示します。API キー（AeroDataBox）を登録すると、出発は今後12時間・到着は前後2時間の時刻表が出ます。登録していないときは、いま飛んでいる便だけです。</li>
+        <li><strong>空港</strong>をタップ：国内線・国際線のタブで、出発（12時間先まで）と到着（6時間先まで）の便を、時刻の順に表示します（下の 7）。</li>
         <li><strong>飛行機・船</strong>をタップ：便名・経路・高度・速度・機種、船名・速力・行先など。</li>
       </ul>
 
@@ -85,7 +85,6 @@
         <li>飛行機と旅客船を<strong>5分より長く</strong>見る（ゲストは、ページを開いてから5分で止まります）。</li>
         <li>列車・飛行機・船の<strong>トラッキング</strong>と、<strong>お気に入りの駅</strong>の登録（情報の画面の ☆ を押す）。</li>
         <li>言語・表示モード・表示の切り替えの設定を保存し、ほかの端末でも同じ設定で使う。</li>
-        <li>空港の時刻表を出すための API キーの登録（任意。下の 7）。</li>
       </ul>
       <h3>ログインのしかた</h3>
       <ol>
@@ -99,53 +98,18 @@
       <ul>
         <li><strong>言語</strong>：日本語・English。最初はブラウザの言語に合わせます。</li>
         <li><strong>表示モード</strong>：自動（端末に合わせる）・ライト・ダーク。ダークでは地図も暗くなります。</li>
-        <li><strong>いまの設定</strong>：言語・表示モード・表示中のもの・API キー・設定の保存先を確認できます。</li>
+        <li><strong>いまの設定</strong>：言語・表示モード・表示中のもの・設定の保存先を確認できます。</li>
         <li>設定の画面から、要望・不具合・お問い合わせを送れます（Google フォームが開きます。ログインは要りません）。</li>
       </ul>
 
-      <h2 id="ja-keys">7. 空港の時刻表を出す（API キーの登録・任意）</h2>
-      <p><strong>登録しなくても、アプリはすべて使えます。</strong>飛行機・旅客船を5分より長く見るのに必要なのは、Google でのログインだけです。</p>
-      <p>API キーを登録すると、空港をタップしたときに、今飛んでいる便に加えて、<strong>出発（今後12時間）と到着（前後2時間）の時刻表</strong>も出ます。時刻表のデータは AeroDataBox のもので、RapidAPI というサービスを通して、無料のプランで使えます。</p>
-      <h3>準備するもの</h3>
+      <h2 id="ja-airport">7. 空港の発着</h2>
+      <p>地図の空港をタップすると、出発と到着の便を、時刻の順に表示します。<strong>登録や設定は要りません。</strong>一覧は、次の情報をまとめたものです（同じ便は上のものを優先します）。</p>
       <ul>
-        <li>Google アカウント（このアプリへのログインと、RapidAPI の登録の両方に使います）</li>
-        <li>パソコン（おすすめ）。相手先のサイトは英語で、スマホでは見づらいためです。所要時間は10分ほどです。</li>
-        <li>料金はかかりません。無料のプラン（Basic）は、回数の上限に達すると止まるだけで、請求はされません。</li>
+        <li><strong>飛行中の便</strong>（「飛行中」）：今飛んでいる便です。到着の時刻は、残りの距離と今の速度から推定しています。✈ の付いた便をタップすると、今の位置を表示します。</li>
+        <li><strong>いつもの時刻</strong>（「いつもの時刻（7日中◯日）」）：このアプリが飛行機の位置を2分ごとに観測し、最近7日にその便が離陸・着陸した時刻から出した目安です。どの航空会社の便も対象です。今日すでに離陸・着陸した便は「離陸済み」「着陸済み」とその時刻を出します。</li>
       </ul>
-      <h3>手順1：RapidAPI のアカウントを作る</h3>
-      <ol>
-        <li><a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI の登録画面</a>を開く。</li>
-        <li>「<strong>Signup with Google</strong>」を押し、ご自分の Google アカウントを選ぶ（メールアドレスとパスワードを入力する欄は使わなくて大丈夫です）。</li>
-        <li>名前や利用目的などを聞かれたら、入力して進む。</li>
-      </ol>
-      <h3>手順2：AeroDataBox の無料プランを申し込む</h3>
-      <ol>
-        <li><a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox の料金ページ</a>を開く（「Choose the plan that's right for You」と書かれた画面です）。</li>
-        <li>いちばん左の「<strong>Basic　$0.00 /mo</strong>」の列の下にある「<strong>Start Free Plan</strong>」を押す。右の Pro・Ultra・Mega は有料なので押さないでください。</li>
-        <li>確認の画面が出たら「<strong>Subscribe</strong>」を押す。</li>
-      </ol>
-      <h3>手順3：API キーをコピーする</h3>
-      <ol>
-        <li><a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/playground" target="_blank" rel="noopener">AeroDataBox の Playground</a> を開く。</li>
-        <li>画面右側のコードの例の中に、<code>x-rapidapi-key</code> と書かれた行があります。その後ろの長い英数字（50文字ほど）が、あなたの API キーです。</li>
-        <li>引用符（' '）の内側の英数字だけを選んでコピーする。</li>
-        <li>見つからないときは、画面右上の自分のアイコン →「<strong>My Apps</strong>」→「<strong>default-application</strong>」→「<strong>Authorization</strong>」を開き、「Application Key」の横のコピーのボタンを押しても、同じキーをコピーできます。</li>
-      </ol>
-      <h3>手順4：このアプリに登録する</h3>
-      <ol>
-        <li>このアプリで、右上の「ログイン」から Google でログインする（まだの場合）。</li>
-        <li>下のメニューの「設定」→「<strong>API キー：空港の時刻表（AeroDataBox・任意）</strong>」を開く。</li>
-        <li>欄にキーを貼り付けて、「<strong>保存してテスト</strong>」を押す。</li>
-        <li>「使えることを確認しました」と出れば完了です。地図の空港をタップすると、時刻表が出ます。</li>
-      </ol>
-      <h3>うまくいかないとき</h3>
-      <ul>
-        <li>「キーが正しくないか、AeroDataBox のプランに登録されていません」：手順2の「Start Free Plan」が済んでいるか、キーの前後に空白や引用符が入っていないかを確かめてください。</li>
-        <li>「無料枠の上限に達しています」：その月の回数を使い切っています。翌月に戻ります。</li>
-      </ul>
-      <h3>無料プランで使える回数</h3>
-      <p>毎月400ユニットまでです。空港を1回開くと、出発と到着で4ユニット使うので、月に約100回開けます。同じ空港は15分間、結果を使い回すので数えません。上限に達しても、今飛んでいる便の表示は続きます。</p>
-      <p>キーはあなたの Google ドライブのこのアプリ専用の領域に保存され、ブラウザから RapidAPI に直接送られます。作者が受け取ることはありません。サイトの画面や条件は変わることがあります。</p>
+      <p>時刻に「頃」が付いているのは推定です。離陸・着陸の時刻なので、搭乗口を出る時刻より10〜20分ほど遅く、搭乗口に着く時刻より数分早くなります。その便が今日飛ぶかどうかや、遅れ・欠航は分かりません。ご搭乗の際は、航空会社や空港の案内を確認してください。</p>
+      <p>「いつもの時刻」は、観測を始めてから2日目以降に出はじめ、1週間ほどでそろいます。受信局のない空域を飛ぶ便は、出ないことがあります。</p>
 
       <h2 id="ja-data">8. データについて</h2>
       <ul>
@@ -153,7 +117,7 @@
         <li>地図：国土地理院（地図の地名は日本語です）。</li>
         <li>飛行機：航空機が発信する ADS-B を有志が受信して公開しているデータ（<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>、ODbL）。30秒ごとに更新し、その間は速度と向きから位置を進めています。受信局のない空域の機体は表示されません。国内線・国際線は便名の経路（<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>）から判定し、わからない場合は航空会社や登録国から推定しています。</li>
         <li>旅客船：船が発信する AIS を有志が受信して公開しているデータ（<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>）。受信局のない海域の船や、AIS を発信していない船は表示されません。</li>
-        <li>空港の時刻表：<a href="https://aerodatabox.com" target="_blank" rel="noopener">AeroDataBox</a>（API キーを登録した場合）。</li>
+        <li>空港の発着：上の飛行機のデータ（adsb.lol・adsbdb）を、このアプリの中継サーバーが2分ごとに観測して作った推定です。</li>
         <li>表示範囲：陸地を含む日本の排他的経済水域。<a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">海上保安庁の領海等概念図</a>に合わせ、外国との境界が未画定の海域は中間線までとしています（Marine Regions、CC BY 4.0 を加工して作成）。範囲の外は白く（ダークでは暗く）表示します。</li>
       </ul>
 
@@ -204,7 +168,7 @@
         <li><a href="#en-info">Trains, stations, airports, flights, ships</a></li>
         <li><a href="#en-login">Sign-in and My list</a></li>
         <li><a href="#en-settings">Settings</a></li>
-        <li><a href="#en-keys">Airport timetables (API key, optional)</a></li>
+        <li><a href="#en-airport">Airport flights</a></li>
         <li><a href="#en-data">About the data</a></li>
         <li><a href="#en-official">Official service info</a></li>
         <li><a href="#en-author">Author and contact</a></li>
@@ -233,14 +197,14 @@
         <li><strong>Search</strong>: find stations, airports (codes too), running trains (e.g. Nozomi 1), flights (e.g. NH20) or ships, then tap to go there.</li>
         <li><strong>Location</strong>: move to where you are (location permission needed).</li>
         <li><strong>My list</strong>: your tracked trains, flights and ferries and favorite stations (sign-in needed).</li>
-        <li><strong>Settings</strong>: account, language, appearance (light / dark), API keys, current settings and this help.</li>
+        <li><strong>Settings</strong>: account, language, appearance (light / dark), current settings and this help.</li>
       </ul>
 
       <h2 id="en-info">4. Trains, stations, airports, flights, ships</h2>
       <ul>
         <li>Tap a <strong>train</strong>: destination, next stop, times at each stop and estimated speed; the map follows the train. Tap a station name to open its timetable.</li>
         <li>Tap a <strong>station</strong>: its timetable (outbound / inbound) with the current hour highlighted and a red line at the current time.</li>
-        <li>Tap an <strong>airport</strong>: flights in domestic / international tabs. With an AeroDataBox API key, you also see the timetable: departures for the next 12 hours and arrivals from 2 hours ago to 2 hours ahead. Without a key, only flights in the air are shown.</li>
+        <li>Tap an <strong>airport</strong>: departures (next 12 hours) and arrivals (next 6 hours) in time order, in domestic / international tabs (section 7).</li>
         <li>Tap a <strong>flight or ship</strong>: flight number, route, altitude, speed and aircraft type; ship name, speed and destination.</li>
       </ul>
 
@@ -250,7 +214,6 @@
         <li>View flights and ferries for <strong>longer than 5 minutes</strong> (for guests they stop 5 minutes after opening the page).</li>
         <li><strong>Track</strong> trains, flights and ferries and save <strong>favorite stations</strong> (press ☆ on their information).</li>
         <li>Save your language, appearance and layer settings and use them on your other devices.</li>
-        <li>Register an API key for airport timetables (optional, section 7).</li>
       </ul>
       <h3>How to sign in</h3>
       <ol>
@@ -264,53 +227,18 @@
       <ul>
         <li><strong>Language</strong>: Japanese or English. It first follows your browser's language.</li>
         <li><strong>Appearance</strong>: Auto (follow device), Light or Dark. Dark also darkens the map.</li>
-        <li><strong>Current settings</strong>: check your language, appearance, what is shown, API keys and where settings are saved.</li>
+        <li><strong>Current settings</strong>: check your language, appearance, what is shown and where settings are saved.</li>
         <li>You can send requests, bug reports or questions from Settings (opens a Google Form; no sign-in needed).</li>
       </ul>
 
-      <h2 id="en-keys">7. Airport timetables (API key, optional)</h2>
-      <p><strong>You can use the whole app without this.</strong> To view flights and ferries for longer than 5 minutes, all you need is to sign in with Google.</p>
-      <p>With an API key, tapping an airport also shows its <strong>timetable: departures for the next 12 hours and arrivals from 2 hours ago to 2 hours ahead</strong>, in addition to flights in the air. The timetable data comes from AeroDataBox through a service called RapidAPI, on a free plan.</p>
-      <h3>What you need</h3>
+      <h2 id="en-airport">7. Airport flights</h2>
+      <p>Tap an airport on the map to see its departures and arrivals in time order. <strong>No registration or setup is needed.</strong> The list combines the following (when the same flight appears in both, the first one is used).</p>
       <ul>
-        <li>A Google account (used both to sign in to this app and to sign up for RapidAPI)</li>
-        <li>A PC (recommended), as the RapidAPI site is hard to use on a phone. It takes about 10 minutes.</li>
-        <li>No charges: the free plan (Basic) simply stops when its quota is reached; you are not billed.</li>
+        <li><strong>Flights in the air</strong> ("In flight"): flights flying now. Arrival times are estimated from the remaining distance and current speed. Tap a flight marked ✈ to see where it is now.</li>
+        <li><strong>Usual times</strong> ("Usual time (n of 7 days)"): this app observes aircraft positions every 2 minutes and estimates each flight's usual takeoff and landing time from the last 7 days. Flights of every airline are included. Flights that already took off or landed today show "Took off" / "Landed" with that time.</li>
       </ul>
-      <h3>Step 1: Create a RapidAPI account</h3>
-      <ol>
-        <li>Open the <a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI sign-up page</a>.</li>
-        <li>Press "<strong>Signup with Google</strong>" and choose your Google account (you don't need the email and password fields).</li>
-        <li>If asked for a name or purpose, fill it in and continue.</li>
-      </ol>
-      <h3>Step 2: Subscribe to AeroDataBox's free plan</h3>
-      <ol>
-        <li>Open the <a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox pricing page</a> ("Choose the plan that's right for You").</li>
-        <li>Press "<strong>Start Free Plan</strong>" at the bottom of the "<strong>Basic $0.00 /mo</strong>" column on the far left. Pro, Ultra and Mega on the right are paid plans.</li>
-        <li>If a confirmation appears, press "<strong>Subscribe</strong>".</li>
-      </ol>
-      <h3>Step 3: Copy your API key</h3>
-      <ol>
-        <li>Open the <a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/playground" target="_blank" rel="noopener">AeroDataBox Playground</a>.</li>
-        <li>In the code sample on the right there is a line with <code>x-rapidapi-key</code>. The long string after it (about 50 characters) is your API key.</li>
-        <li>Select and copy only the characters inside the quotes (' ').</li>
-        <li>If you can't find it, open your icon at the top right → "<strong>My Apps</strong>" → "<strong>default-application</strong>" → "<strong>Authorization</strong>" and press the copy button next to "Application Key". It is the same key.</li>
-      </ol>
-      <h3>Step 4: Register it in this app</h3>
-      <ol>
-        <li>Sign in with Google from "Log in" at the top right of this app (if you haven't yet).</li>
-        <li>Open Settings in the bottom menu → "<strong>API key: airport timetables (AeroDataBox, optional)</strong>".</li>
-        <li>Paste the key and press "<strong>Save and test</strong>".</li>
-        <li>When "The key works" appears, you are done. Tap an airport on the map to see its timetable.</li>
-      </ol>
-      <h3>If it doesn't work</h3>
-      <ul>
-        <li>"The key is wrong, or you have not subscribed to an AeroDataBox plan": check that you finished "Start Free Plan" in step 2 and that there are no spaces or quotes around the key.</li>
-        <li>"The free quota has been reached": you have used up this month's quota. It resets next month.</li>
-      </ul>
-      <h3>How much the free plan allows</h3>
-      <p>400 units a month. Opening an airport uses 4 units (departures and arrivals), so about 100 airport views a month. The same airport reuses its result for 15 minutes without counting. Flights in the air are still shown after the limit is reached.</p>
-      <p>The key is saved in this app's private area of your Google Drive and sent directly from your browser to RapidAPI. The author never receives it. The sites and conditions may change.</p>
+      <p>Times marked "~" are estimates of takeoff and landing, so they are about 10–20 minutes after leaving the gate and a few minutes before reaching the gate. Whether a flight operates today, delays and cancellations are not known. Please check with your airline or airport before you fly.</p>
+      <p>Usual times start to appear from the second day of observation and are mostly complete after about a week. Flights through airspace without receivers may not appear.</p>
 
       <h2 id="en-data">8. About the data</h2>
       <ul>
@@ -318,7 +246,7 @@
         <li>Base map: GSI Japan (place names on the map are in Japanese).</li>
         <li>Flights: ADS-B data received and shared by volunteers (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL), updated every 30 seconds and moved forward by speed and heading in between. Aircraft in areas without receivers are not shown. Domestic / international is judged from the flight's route (<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>), or from the airline and country of registration when unknown.</li>
         <li>Ferries: AIS data received and shared by volunteers (<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>). Ships in areas without receivers, or without AIS, are not shown.</li>
-        <li>Airport timetables: <a href="https://aerodatabox.com" target="_blank" rel="noopener">AeroDataBox</a> (when you register an API key).</li>
+        <li>Airport flights: estimates made by this app's relay server, which observes the flight data above (adsb.lol, adsbdb) every 2 minutes.</li>
         <li>Covered area: Japan's EEZ including land, following the <a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">Japan Coast Guard's map</a>, with median lines where boundaries are not yet agreed (Marine Regions, CC BY 4.0, processed). Outside the area is shown white (dark in dark mode).</li>
       </ul>
 

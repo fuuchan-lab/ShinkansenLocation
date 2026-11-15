@@ -1,124 +1,67 @@
-// 空港の発着予定（AeroDataBox。RapidAPI 経由）。
-// 利用者が自分の API キーを登録したときだけ使い、ブラウザから RapidAPI へ直接つなぐ（開発者のサーバーは通らない）。
-// 無料枠は小さいので、同じ空港は 15 分間、結果を使い回す。
-import type { ApiKeyName } from './user';
+// 空港の発着（中継サーバーの /airport。利用者の登録は不要）。
+// - official: 公共交通オープンデータセンターの JAL・ANA の発着情報（定刻・見込み・状態）
+// - usual: 中継サーバーが飛行中の便を観測して作った、ふだんの離陸・着陸の時刻（全社の便。推定）
+// 中継サーバーで 5 分キャッシュしているので、同じ空港は 5 分間、結果を使い回す。
+import { LIVE_API } from './aircraft';
 
-export const SCHEDULE_KEY: ApiKeyName = 'aerodatabox';
-const HOST = 'aerodatabox.p.rapidapi.com';
-const CACHE_MS = 15 * 60 * 1000;
-const HOUR = 3600e3;
+const CACHE_MS = 5 * 60 * 1000;
 
-export type ScheduleErrorKind = 'key' | 'quota' | 'network' | 'other';
-export class ScheduleError extends Error {
-  constructor(public kind: ScheduleErrorKind, message: string) {
-    super(message);
-  }
-}
-
-export interface Scheduled {
-  /** NH 12 など（空白は除いて照合する） */
-  number: string;
-  airline: string;
-  /** 見込みの時刻（遅れ・早まりを反映。なければ予定）ms */
-  time: number;
-  /** 予定の時刻 ms */
-  scheduled: number;
+export interface Official {
+  /** 便名（JL123 など。共同運航の便名も含む） */
+  numbers: string[];
+  /** OnTime / Delayed / Cancelled / Departed など */
   status: string;
-  /** 相手の空港（出発なら行先・到着なら出発地） */
-  otherCode: string;
-  otherName: string;
-  /** 国際線（相手の空港が日本以外） */
-  intl: boolean;
-  terminal: string;
+  /** 日本時間の "HH:MM" */
+  scheduled: string;
+  estimated: string;
+  actual: string;
+  /** 相手の空港（IATA） */
+  other: string;
   gate: string;
-  model: string;
+  terminal: string;
 }
-export type Kind = 'dep' | 'arr';
 
-interface Time { utc?: string }
-interface Raw {
-  number?: string;
-  status?: string;
-  isCargo?: boolean;
-  aircraft?: { model?: string };
-  airline?: { name?: string };
-  movement?: {
-    airport?: { iata?: string; name?: string; shortName?: string; municipalityName?: string; countryCode?: string };
-    scheduledTime?: Time;
-    revisedTime?: Time;
-    predictedTime?: Time;
-    terminal?: string;
-    gate?: string;
+export interface Usual {
+  callsign: string;
+  /** 便名（NH21 など。分からなければ空） */
+  flight: string;
+  other: string;
+  intl: boolean;
+  /** ふだんの離陸（出発）・着陸（到着）の時刻。日本時間の 0 時からの分 */
+  min: number;
+  /** 最近 7 日で見えた日数 */
+  days: number;
+  /** 直近 16 時間に離陸・着陸した時刻（ms） */
+  recent: number | null;
+}
+
+export interface Board {
+  dep: { official: Official[] | null; usual: Usual[] };
+  arr: { official: Official[] | null; usual: Usual[] };
+}
+
+type OfficialRow = { n: string[]; s: string; t: string; e: string; a: string; o: string; g: string; m: string };
+type UsualRow = [string, string, string, 0 | 1, number, number, number | null];
+
+const cache = new Map<string, { at: number; board: Board }>();
+
+export async function fetchBoard(code: string): Promise<Board> {
+  const hit = cache.get(code);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.board;
+  const res = await fetch(`${LIVE_API}/airport?code=${code}`);
+  if (!res.ok) throw new Error(`airport ${res.status}`);
+  const data = (await res.json()) as {
+    usual: { dep: UsualRow[]; arr: UsualRow[] };
+    official: { dep: OfficialRow[]; arr: OfficialRow[] } | null;
   };
-}
-
-/** "2026-11-15 01:35Z" → ms */
-const when = (t?: Time) => (t?.utc ? Date.parse(t.utc.replace(' ', 'T')) : NaN);
-/** 日本時間（空港はすべて日本時間）の "YYYY-MM-DDTHH:mm" */
-const jst = (ms: number) => new Date(ms + 9 * HOUR).toISOString().slice(0, 16);
-
-/** 出発は今から 12 時間先まで、到着は 2 時間前から 2 時間先まで */
-export function windowOf(kind: Kind, now = Date.now()): [number, number] {
-  return kind === 'dep' ? [now, now + 12 * HOUR] : [now - 2 * HOUR, now + 2 * HOUR];
-}
-
-async function call(path: string, key: string): Promise<unknown> {
-  let res: Response;
-  try {
-    res = await fetch(`https://${HOST}${path}`, { headers: { 'X-RapidAPI-Key': key, 'X-RapidAPI-Host': HOST } });
-  } catch {
-    throw new ScheduleError('network', 'network');
-  }
-  if (res.status === 401 || res.status === 403) throw new ScheduleError('key', String(res.status));
-  if (res.status === 429) throw new ScheduleError('quota', '429');
-  if (!res.ok) throw new ScheduleError('other', String(res.status));
-  return res.json();
-}
-
-/** 登録したキーが使えるかを確かめる（空港情報を 1 件取るだけ） */
-export async function testKey(key: string): Promise<void> {
-  await call('/airports/iata/HND', key);
-}
-
-export async function fetchSchedule(code: string, kind: Kind, key: string): Promise<Scheduled[]> {
-  const cacheKey = `sched.${code}.${kind}`;
-  try {
-    const hit = JSON.parse(sessionStorage.getItem(cacheKey) ?? 'null') as { at: number; data: Scheduled[] } | null;
-    if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
-  } catch {
-    // キャッシュを読めなければ取り直す
-  }
-  const [from, to] = windowOf(kind);
-  const direction = kind === 'dep' ? 'Departure' : 'Arrival';
-  const query = `direction=${direction}&withLeg=false&withCancelled=false&withCodeshared=false&withCargo=false&withPrivate=false&withLocation=false`;
-  const body = (await call(`/flights/airports/iata/${code}/${jst(from)}/${jst(to)}?${query}`, key)) as { departures?: Raw[]; arrivals?: Raw[] };
-  const raw = (kind === 'dep' ? body.departures : body.arrivals) ?? [];
-  const data: Scheduled[] = [];
-  for (const r of raw) {
-    const m = r.movement;
-    const scheduled = when(m?.scheduledTime);
-    const time = [when(m?.revisedTime), when(m?.predictedTime), scheduled].find((x) => !Number.isNaN(x));
-    if (!m || time === undefined || r.isCargo) continue;
-    const ap = m.airport;
-    data.push({
-      number: (r.number ?? '').trim(),
-      airline: r.airline?.name ?? '',
-      time,
-      scheduled: Number.isNaN(scheduled) ? time : scheduled,
-      status: r.status ?? '',
-      otherCode: ap?.iata ?? '',
-      otherName: ap?.municipalityName || ap?.shortName || ap?.name || '',
-      intl: !!ap?.countryCode && ap.countryCode !== 'JP',
-      terminal: m.terminal ?? '',
-      gate: m.gate ?? '',
-      model: r.aircraft?.model ?? '',
-    });
-  }
-  data.sort((a, b) => a.time - b.time);
-  try {
-    sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data }));
-  } catch {
-    // 保存できなくても表示には影響しない
-  }
-  return data;
+  const official = (rows: OfficialRow[]): Official[] =>
+    rows.map((r) => ({ numbers: r.n, status: r.s, scheduled: r.t, estimated: r.e, actual: r.a, other: r.o, gate: r.g, terminal: r.m }));
+  const usual = (rows: UsualRow[]): Usual[] =>
+    rows.map(([callsign, flight, other, intl, min, days, recent]) => ({ callsign, flight, other, intl: intl === 1, min, days, recent }));
+  const board: Board = {
+    dep: { official: data.official && official(data.official.dep), usual: usual(data.usual.dep) },
+    arr: { official: data.official && official(data.official.arr), usual: usual(data.usual.arr) },
+  };
+  cache.set(code, { at: Date.now(), board });
+  return board;
 }

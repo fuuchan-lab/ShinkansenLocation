@@ -30,16 +30,16 @@
         <li><strong>Google アカウントの名前・プロフィール画像</strong>（ログインした場合のみ。ログイン中であることを画面に表示するため）</li>
         <li><strong>登録した内容</strong>：トラッキングする列車（列車名・号数）、飛行機（便名・コールサイン・機体の識別番号）、船（MMSI・船名）、お気に入りの駅（駅名）</li>
         <li><strong>端末の設定</strong>：表示する言語、表示モード（ライト・ダーク）、飛行機・船・路線の表示の切り替え（ログイン中は、これらも登録内容と一緒に Google ドライブに保存します）</li>
-        <li><strong>API キー</strong>（ログインして、利用者が自分で登録した場合のみ）：空港の発着予定を表示するための RapidAPI（AeroDataBox）のキー（利用者自身のもの）</li>
         <li><strong>現在地</strong>（位置情報を許可した場合のみ）：地図に自分の位置を表示するためだけに、端末の中で使います。どこにも送信・保存しません。</li>
       </ul>
 
       <h2>保存先</h2>
       <ul>
-        <li><strong>利用している端末のブラウザ内</strong>（localStorage）：端末の設定、ログイン状態、登録内容の写し（すぐに表示するため）。ログイン中の API キーは、写しとしてここにも一時的に置かれ、ログアウトで消えます。</li>
+        <li><strong>利用している端末のブラウザ内</strong>（localStorage）：端末の設定、ログイン状態、登録内容の写し（すぐに表示するため）。</li>
         <li><strong>ログインした Google アカウントの Google ドライブのアプリ専用領域</strong>（appDataFolder）：登録内容（ファイル名 user.json）。この領域は、利用者のドライブのファイル一覧には表示されず、本アプリからしか読み書きできません。他の端末でログインしても同じ登録内容を使えます。</li>
       </ul>
       <p>本アプリの開発者が、上記の個人の情報や登録内容を受け取ることはありません。</p>
+      <p>以前のバージョンで登録できた API キー（aisstream.io・AeroDataBox）は、使わなくなりました。読み込まず、ログイン中に次に保存したときに Google ドライブからも消えます。</p>
       <p>ただし、設定の画面から要望・お問い合わせを送った場合は、書いた内容と、状況を知るための情報（開いていた画面の URL、言語、地図の中心とズーム、ブラウザの種類）が、Google フォームを通じて開発者に届きます。名前やメールアドレスは集めません（本文に書いた場合を除く）。いただいた内容は、アプリの改善と返答のためだけに使います。</p>
 
       <h2>Google のデータの利用</h2>
@@ -49,9 +49,8 @@
       <p>地図や情報を表示するため、ブラウザから次のサービスに接続します。どの通信にも、利用者の登録内容や Google アカウントの情報、現在地は含みません（各サービスには、通常の通信と同じく IP アドレスなどが届きます）。</p>
       <ul>
         <li>国土地理院（地図の画像）、OpenFreeMap（地図の文字のフォント）</li>
-        <li>飛行機・旅客船の位置を中継するサーバー（開発者が Cloudflare Workers で運用）。公開されている adsb.lol・adsbdb・aisstream.io のデータをまとめて返すだけで、利用者を識別する情報は記録しません。</li>
+        <li>飛行機・旅客船の位置を中継するサーバー（開発者が Cloudflare Workers で運用）。公開されている adsb.lol・adsbdb・aisstream.io のデータをまとめて返すだけで、利用者を識別する情報は記録しません。空港の発着も、空港コードを送ってここから受け取ります。</li>
         <li>Google（ログインと、Google ドライブへの保存。ログインした場合のみ）</li>
-        <li>RapidAPI（AeroDataBox）：利用者が自分の API キーを登録した場合のみ。空港の発着予定を取得するため、<strong>利用者のブラウザから直接</strong> rapidapi.com へ、空港コード・時間帯と利用者の API キーを送ります。開発者のサーバーは通らず、開発者がキーを受け取ることはありません。キーの利用状況・料金は、利用者と RapidAPI の契約に従います。</li>
         <li>Google フォーム：要望・お問い合わせを送る場合のみ（上記の内容）</li>
         <li>PayPal：運営資金のご協力（寄付）をする場合のみ。PayPal の画面で入力した情報は PayPal が扱い、開発者はアプリから受け取りません。</li>
       </ul>
@@ -67,7 +66,7 @@
       </ul>
 
       <h2>今後の変更</h2>
-      <p>API キーを登録できる対象を増やす場合も、保存先は上記の Google ドライブのアプリ専用領域のままで、追加する内容はこのページに追記します。API キーを削除すると、端末と Google ドライブから消えます。</p>
+      <p>扱う情報や保存先を変える場合は、このページを更新します。</p>
 
       <h2>作者について</h2>
       <p><strong>Harry</strong>（ハリー）：名古屋を拠点に世界を飛び回る会社員。何でも自分で探し、作り、直すまで納得しないタイプで、ブログ「<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>」（hvd.jp）で、デジタルガジェットや DIY のデジタル生活を紹介しています。</p>
@@ -90,16 +89,16 @@
         <li><strong>Your Google account name and profile picture</strong> (only when signed in, to show who is signed in)</li>
         <li><strong>Items you save</strong>: trains you track (train name and number), flights (flight number, callsign, aircraft identifier), ships (MMSI and name) and favorite stations (station name)</li>
         <li><strong>Device settings</strong>: display language, appearance (light / dark) and which flights, ships and lines are shown (while signed in, these are also saved in Google Drive together with your saved items)</li>
-        <li><strong>API keys</strong> (only if you sign in and register them yourself): your own RapidAPI (AeroDataBox) key, used to show airport timetables</li>
         <li><strong>Your location</strong> (only if you allow it): used only on your device to show where you are on the map. It is never sent or stored anywhere.</li>
       </ul>
 
       <h2>Where data is stored</h2>
       <ul>
-        <li><strong>In the browser on your device</strong> (localStorage): device settings, sign-in state and a copy of your saved items (to show them quickly). While signed in, a copy of your API keys is also kept here temporarily and removed when you sign out.</li>
+        <li><strong>In the browser on your device</strong> (localStorage): device settings, sign-in state and a copy of your saved items (to show them quickly).</li>
         <li><strong>In the private app-data area of your Google Drive</strong> (appDataFolder): your saved items (file name user.json). This area does not appear in your Drive file list and only this app can read or write it. Signing in on another device gives you the same list.</li>
       </ul>
       <p>The developer never receives your personal information or saved items.</p>
+      <p>API keys that could be registered in earlier versions (aisstream.io, AeroDataBox) are no longer used. They are not loaded and are removed from Google Drive the next time your data is saved while signed in.</p>
       <p>The exception is a request or question you send from Settings: what you write, plus details that help understand the situation (the page URL, language, map center and zoom, and browser type), reaches the developer through Google Forms. Names and email addresses are not collected (unless you write them in the message). What you send is used only to improve the app and to reply.</p>
 
       <h2>Use of Google data</h2>
@@ -109,9 +108,8 @@
       <p>To show the map and information, your browser connects to the following services. None of these requests include your saved items, Google account information or location (each service receives your IP address and similar details, as with any web request).</p>
       <ul>
         <li>GSI Japan (map images) and OpenFreeMap (map label fonts)</li>
-        <li>A relay server for flight and ferry positions, run by the developer on Cloudflare Workers. It only combines public data from adsb.lol, adsbdb and aisstream.io and does not record anything that identifies users.</li>
+        <li>A relay server for flight and ferry positions, run by the developer on Cloudflare Workers. It only combines public data from adsb.lol, adsbdb and aisstream.io and does not record anything that identifies users. Airport flights are also fetched from it by sending the airport code.</li>
         <li>Google (sign-in and saving to Google Drive, only when signed in)</li>
-        <li>RapidAPI (AeroDataBox), only if you register your own API key: to get airport timetables, <strong>your browser connects directly</strong> to rapidapi.com and sends the airport code, the time range and your API key. This never goes through the developer's server, and the developer never receives the key. Usage and charges follow your own agreement with RapidAPI.</li>
         <li>Google Forms, only when you send a request or question (as described above)</li>
         <li>PayPal, only when you make a donation. What you enter on PayPal's pages is handled by PayPal; the developer receives nothing from the app.</li>
       </ul>
@@ -127,7 +125,7 @@
       </ul>
 
       <h2>Future changes</h2>
-      <p>If we let you register API keys for more services, they will also be stored in the private app-data area of your Google Drive, and this page will be updated. Deleting an API key removes it from your device and Google Drive.</p>
+      <p>If what we handle or where it is stored changes, this page will be updated.</p>
 
       <h2>About the author</h2>
       <p><strong>Harry</strong>: an office worker based in Nagoya who travels the world and is never satisfied until things are found, built or fixed by hand. Harry writes about digital gadgets and a DIY digital life on the blog "<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>" (hvd.jp, in Japanese).</p>

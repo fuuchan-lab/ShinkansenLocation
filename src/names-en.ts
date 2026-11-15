@@ -74,6 +74,16 @@ const IATA: Record<string, string> = {
 const baseName = (name: string) => /^(.*?)(空港|飛行場)$/.exec(name)?.[1] ?? name;
 export const airportCode = (name: string): string => IATA[baseName(name)] ?? '';
 
+const BY_CODE = new Map(Object.entries(IATA).map(([base, code]) => [code, base]));
+/** 日本の空港（国際線かどうかの判定に使う） */
+export const isJapanAirport = (code: string) => BY_CODE.has(code);
+/** 発着の一覧の相手の空港: 日本の空港は「伊丹 ITM」、それ以外はコードだけ */
+export function airportByCode(code: string, en: boolean): string {
+  const base = BY_CODE.get(code);
+  if (!base) return code;
+  return `${en ? (AIRPORTS[base] ?? base) : base} ${code}`;
+}
+
 export function airport(name: string): string {
   const m = /^(.*?)(空港|飛行場)$/.exec(name);
   if (!m || !AIRPORTS[m[1]]) return name;

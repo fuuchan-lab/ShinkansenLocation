@@ -9,11 +9,11 @@ import { inArea, setArea, type AreaFeature } from './area';
 import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
 import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
-import { airportCode } from './names-en';
-import { fetchSchedule, ScheduleError, SCHEDULE_KEY, testKey, type Scheduled, type ScheduleErrorKind } from './schedule';
+import { airportByCode, airportCode, isJapanAirport } from './names-en';
+import { fetchBoard, type Board } from './schedule';
 import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
 import { effectiveTheme, getTheme, onThemeChange, setTheme, type Theme } from './theme';
-import { getApiKey, GOOGLE_CLIENT_ID, isFav, onUserChange, setApiKey, type ApiKeyName, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
+import { GOOGLE_CLIENT_ID, isFav, onUserChange, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -821,13 +821,13 @@ function openShip(mmsi: number) {
 }
 
 function openAirport(name: string) {
-  // 国内線の便があれば国内線のタブ、なければ国際線のタブから
+  // 国内線の便があれば国内線のタブ、なければ国際線のタブから（成田・関西など）
   const code = airportCode(name);
   const intl = !!code && !airportFlights(code).some((f) => !f.a.intl) && airportFlights(code).some((f) => f.a.intl);
   sheet = { kind: 'airport', name, intl };
   follow = false;
   scrollToNow = true;
-  loadSchedule(code);
+  loadBoard(code);
   const ap = airports.find((a) => a.name === name);
   showSheet(ap ? [ap.lng, ap.lat] : undefined, map.getZoom());
 }
@@ -1084,93 +1084,154 @@ function airportFlights(code: string) {
   return out;
 }
 
-const ARRIVAL_WINDOW_MIN = 120;
-
-/** 空港ごとの発着予定（API キーを登録しているときだけ取得する） */
-const schedules = new Map<string, { dep?: Scheduled[]; arr?: Scheduled[]; error?: ScheduleErrorKind; detail?: string; loading: boolean }>();
-async function loadSchedule(code: string) {
-  const key = getApiKey(SCHEDULE_KEY);
-  if (!key || !code) return;
-  schedules.set(code, { loading: true });
-  const done = (v: { dep?: Scheduled[]; arr?: Scheduled[]; error?: ScheduleErrorKind; detail?: string }) => {
-    schedules.set(code, { ...v, loading: false });
-    if (sheet?.kind === 'airport' && airportCode(sheet.name) === code) renderSheet();
-  };
+/** 空港ごとの発着（中継サーバーの /airport）。開いたときに取り、開いている間は 5 分ごとに取り直す */
+const BOARD_REFRESH_MS = 5 * 60 * 1000;
+const boards = new Map<string, { board?: Board; error?: boolean; loading: boolean; at: number }>();
+async function loadBoard(code: string) {
+  if (!code || !LIVE_API || boards.get(code)?.loading) return;
+  const prev = boards.get(code)?.board;
+  boards.set(code, { board: prev, loading: true, at: Date.now() });
+  let next: { board?: Board; error?: boolean };
   try {
-    const [dep, arr] = await Promise.all([fetchSchedule(code, 'dep', key), fetchSchedule(code, 'arr', key)]);
-    done({ dep, arr });
-  } catch (err) {
-    done(err instanceof ScheduleError ? { error: err.kind, detail: err.kind === 'other' ? err.message : '' } : { error: 'other' });
+    next = { board: await fetchBoard(code) };
+  } catch {
+    next = { board: prev, error: true };
   }
+  boards.set(code, { ...next, loading: false, at: Date.now() });
+  if (sheet?.kind === 'airport' && airportCode(sheet.name) === code) renderSheet();
+}
+
+/** 発着の一覧の 1 行。rel: 今からの分（過去は負） */
+interface BoardRow {
+  rel: number;
+  time: string;
+  label: string;
+  other: string;
+  intl: boolean;
+  status: string;
+  cls: string;
+  hex?: string;
+}
+
+/** 日本時間の今（0 時からの分）。空港の発着は、時刻表のシミュレーションに関係なく今の時刻で出す */
+const realJstMinutes = () => {
+  const d = new Date(Date.now() + 9 * 3600e3);
+  return d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60;
+};
+/** 0 時からの分を、今からの分（-12時間〜+12時間）にする */
+const relMin = (min: number, now: number) => ((((min - now + 720) % 1440) + 1440) % 1440) - 720;
+const hhmmMin = (s: string) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(s);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+const msMin = (ms: number) => {
+  const d = new Date(ms + 9 * 3600e3);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+};
+// 出発は 1 時間前から 12 時間後まで、到着は 1 時間前から 6 時間後まで（飛行中の便は、この範囲の外でも出す）
+const BOARD_WINDOW = { dep: [-60, 720], arr: [-60, 360] } as const;
+
+/** JAL・ANA の発表・飛行中の便・ふだんの時刻を、1 つの一覧にまとめる（同じ便は、この順に優先） */
+function boardRows(code: string, dir: 'dep' | 'arr', board: Board | undefined, now: number): BoardRow[] {
+  const tx = t();
+  const rows: BoardRow[] = [];
+  const seen = new Set<string>();
+  const findLive = (names: string[]) => aircraft.find((a) => names.some((n) => n && (a.flight === n || a.callsign === n)));
+
+  for (const o of board?.[dir].official ?? []) {
+    const sched = hhmmMin(o.scheduled);
+    if (sched === null) continue;
+    const actual = hhmmMin(o.actual);
+    const est = hhmmMin(o.estimated);
+    const late = est !== null ? relMin(est, sched) : 0;
+    const a = findLive(o.numbers);
+    let status = tx.statuses[o.status] ?? o.status;
+    let cls = '';
+    if (o.status === 'Cancelled') cls = 'cancel';
+    else if (actual !== null) status = `${status} ${formatTime(actual)}`;
+    else if (est !== null && late !== 0) {
+      status = `${status} → ${formatTime(est)}`;
+      if (late >= 10) cls = 'delayed';
+    }
+    if (a) status += ` · ${tx.inFlight}`;
+    rows.push({
+      rel: relMin(actual ?? est ?? sched, now), time: formatTime(sched), label: o.numbers[0] ?? '', other: o.other,
+      intl: !isJapanAirport(o.other), status, cls, hex: a?.hex,
+    });
+    o.numbers.forEach((n) => seen.add(n));
+    if (a) seen.add(a.callsign);
+  }
+
+  for (const f of airportFlights(code)) {
+    if (f.arr !== (dir === 'arr') || f.minutes === null || seen.has(f.a.flight) || seen.has(f.a.callsign)) continue;
+    const rel = dir === 'arr' ? f.minutes : -f.minutes;
+    rows.push({
+      rel, time: tx.approx(formatTime((now + rel + 1440) % 1440)), label: aircraftLabel(f.a), other: dir === 'arr' ? f.a.from : f.a.to,
+      intl: f.a.intl, status: tx.inFlight, cls: '', hex: f.a.hex,
+    });
+    seen.add(f.a.flight);
+    seen.add(f.a.callsign);
+  }
+
+  for (const u of board?.[dir].usual ?? []) {
+    if (seen.has(u.flight) || seen.has(u.callsign)) continue;
+    // 今日すでに離陸・着陸していれば、その時刻（推定）を出す
+    const min = u.recent !== null ? msMin(u.recent) : u.min;
+    const status = u.recent !== null ? (dir === 'dep' ? tx.tookOff : tx.landed) : tx.usualDays(u.days);
+    rows.push({
+      rel: relMin(min, now), time: tx.approx(formatTime(min)), label: u.flight || u.callsign, other: u.other,
+      intl: u.intl, status, cls: u.recent !== null ? '' : 'usual',
+    });
+  }
+
+  const [from, to] = BOARD_WINDOW[dir];
+  return rows
+    .filter((r) => r.hex || (r.rel >= from && r.rel <= to))
+    .sort((x, y) => x.rel - y.rel);
 }
 
 function airportSheet(name: string, intl: boolean): string {
   const tx = t();
   const code = airportCode(name);
-  const flights = code ? airportFlights(code) : [];
-  const now = jstNowMinutes();
-  // 利用者が API キーを登録していれば、時刻表（出発は今後12時間・到着は前後2時間）を出す。なければ、いま飛んでいる便だけ
-  const key = getApiKey(SCHEDULE_KEY);
-  const sched = code ? schedules.get(code) : undefined;
-  const hasSched = !!(sched && (sched.dep || sched.arr));
-  const count = (i: boolean) => hasSched
-    ? [...(sched!.dep ?? []), ...(sched!.arr ?? [])].filter((x) => x.intl === i).length
-    : flights.filter((f) => f.a.intl === i).length;
+  const state = code ? boards.get(code) : undefined;
+  if (code && !state?.loading && Date.now() - (state?.at ?? 0) > BOARD_REFRESH_MS) loadBoard(code);
+  const now = realJstMinutes();
+  const dep = code ? boardRows(code, 'dep', state?.board, now) : [];
+  const arr = code ? boardRows(code, 'arr', state?.board, now) : [];
+  const count = (i: boolean) => [...dep, ...arr].filter((r) => r.intl === i).length;
   const tab = (i: boolean, label: string) =>
     `<button type="button" class="tab ${i === intl ? 'on' : ''}" data-intl="${i ? 1 : 0}"><b>${label}</b><span>${count(i)}</span></button>`;
 
-  const row = ({ a, arr, minutes }: (typeof flights)[number]) => {
-    const time = minutes === null ? '--:--' : formatTime(arr ? now + minutes : now - minutes + 1440);
-    const color = a.intl ? '#d6247e' : '#8a6a00';
-    const other = arr ? tx.fromAirport(a.from) : tx.toAirport(a.to);
-    const alt = a.alt !== null ? `${Math.round(a.alt / 100) * 100} ft` : '';
-    return `
+  const row = (r: BoardRow) => `
       <li>
-        <button type="button" class="dep" data-aircraft="${a.hex}">
-          <span class="tt">${tx.approx(time)}</span>
-          <span class="nm" style="--c:${color}">${escapeHtml(aircraftLabel(a))}</span>
-          <span class="dest">${other}${a.type ? ` <small>${escapeHtml(a.type)}</small>` : ''}</span>
-          <span class="alt">${alt}</span>
+        <button type="button" class="dep ${r.hex ? 'live-match' : ''}" ${r.hex ? `data-aircraft="${r.hex}"` : 'disabled'}>
+          <span class="tt">${r.time}</span>
+          <span class="nm" style="--c:${r.intl ? '#d6247e' : '#8a6a00'}">${escapeHtml(r.label)}</span>
+          <span class="dest">${escapeHtml(airportByCode(r.other, lang === 'en'))}</span>
+          <span class="sched-status ${r.cls}">${escapeHtml(r.status)}</span>
         </button>
       </li>`;
-  };
-  const list = flights.filter((f) => f.a.intl === intl);
-  const section = (title: string, items: typeof flights) =>
-    items.length ? `<section class="flights"><h3>${title}</h3><ul>${items.map(row).join('')}</ul></section>` : '';
-  // 到着予定は 2 時間以内を早い順、出発した便（飛行中）は新しい順。出発した便は飛行中のものだけなので 12 時間以内に収まる
-  const arrivals = list.filter((f) => f.arr && (f.minutes ?? 0) <= ARRIVAL_WINDOW_MIN).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
-  const departures = list.filter((f) => !f.arr).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
-  const live = section(tx.arriving, arrivals) + section(tx.departed, departures) || `<p class="small">${tx.noFlights}</p>`;
-
-  // 時刻表の 1 行。飛行中の便と便名が合えば、タップで現在位置へ
-  const hhmm = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(11, 16);
-  const schedRow = (s: Scheduled) => {
-    const num = s.number.replace(/\s/g, '');
-    const a = aircraft.find((x) => x.flight === num || x.callsign === num);
-    const late = Math.round((s.time - s.scheduled) / 60000);
-    const status = tx.statuses[s.status] ?? s.status;
-    const cls = s.status === 'Canceled' ? 'cancel' : s.status === 'Delayed' || late >= 10 ? 'delayed' : '';
-    return `
-      <li>
-        <button type="button" class="dep ${a ? 'live-match' : ''}" ${a ? `data-aircraft="${a.hex}"` : 'disabled'}>
-          <span class="tt">${hhmm(s.time)}</span>
-          <span class="nm" style="--c:${s.intl ? '#d6247e' : '#8a6a00'}">${escapeHtml(s.number)}</span>
-          <span class="dest">${escapeHtml(s.otherName)} ${escapeHtml(s.otherCode)}${s.model ? ` <small>${escapeHtml(s.model)}</small>` : ''}</span>
-          <span class="sched-status ${cls}">${escapeHtml(status)}${late >= 10 ? ` +${late}` : ''}${a ? ` · ${tx.inFlight}` : ''}</span>
-        </button>
-      </li>`;
-  };
-  const schedSection = (title: string, rows: Scheduled[] | undefined) => {
-    const items = (rows ?? []).filter((x) => x.intl === intl);
-    return `<section class="flights"><h3>${title}</h3>${items.length ? `<ul>${items.map(schedRow).join('')}</ul>` : `<p class="small" style="padding:8px">${tx.schedEmpty}</p>`}</section>`;
+  // 今の時刻の線（出発の一覧に入れ、開いたときにそこまで送る）
+  let marked = false;
+  const section = (title: string, rows: BoardRow[], mark: boolean) => {
+    const items = rows.filter((r) => r.intl === intl);
+    const html: string[] = [];
+    for (const r of items) {
+      if (mark && !marked && r.rel >= 0) {
+        html.push(`<li class="now-line"><span>${tx.now(formatTime(Math.floor(now)))}</span></li>`);
+        marked = true;
+      }
+      html.push(row(r));
+    }
+    if (mark && !marked && items.length) html.push(`<li class="now-line"><span>${tx.now(formatTime(Math.floor(now)))}</span></li>`);
+    return `<section class="flights"><h3>${title}</h3>${html.length ? `<ul>${html.join('')}</ul>` : `<p class="small" style="padding:8px">${tx.schedEmpty}</p>`}</section>`;
   };
   let notice = '';
-  if (code && !key) notice = `<div class="need-key"><p>${tx.needKey}</p><button type="button" data-open-keys>${tx.needKeyButton}</button></div>`;
-  else if (code && sched?.loading) notice = `<p class="small" style="padding:8px">${tx.schedLoading}</p>`;
-  else if (code && sched?.error) notice = `<p class="small" style="padding:8px;color:#d93025">${tx.keyErrors[sched.error]}${sched.detail ? ` (${escapeHtml(sched.detail)})` : ''}</p>`;
+  if (code && !state?.board && state?.loading) notice = `<p class="small" style="padding:8px">${tx.schedLoading}</p>`;
+  else if (code && state?.error) notice = `<p class="small" style="padding:8px;color:#d93025">${tx.boardError}</p>`;
   const body = !code ? `<p class="small">${tx.noCode}</p>`
-    : hasSched ? notice + schedSection(tx.schedDepartures, sched!.dep) + schedSection(tx.schedArrivals, sched!.arr)
-    : notice + live;
+    : notice + section(tx.schedDepartures, dep, true) + section(tx.schedArrivals, arr, false);
+  const official = !!(state?.board?.dep.official || state?.board?.arr.official);
 
   return `
     <div class="sticky">
@@ -1182,7 +1243,7 @@ function airportSheet(name: string, intl: boolean): string {
       ${code ? `<div class="tabs">${tab(false, tx.domestic)}${tab(true, tx.international)}</div>` : ''}
     </div>
     <div class="timetable">${body}</div>
-    ${hasSched ? `<p class="small">${tx.schedNote}</p>` : `${arrivals.length ? `<p class="small">${tx.etaNote}</p>` : ''}<p class="small">${tx.airportNote}</p>`}
+    ${code ? `<p class="small">${tx.boardNote}</p>${official ? `<p class="small">${tx.officialNote}</p>` : ''}` : ''}
     ${code ? `<div class="actions"><a href="https://www.flightradar24.com/data/airports/${code.toLowerCase()}" target="_blank" rel="noopener">${tx.schedules('Flightradar24')}</a></div>` : ''}`;
 }
 
@@ -1227,9 +1288,6 @@ function bindSheet() {
   body.querySelectorAll<HTMLButtonElement>('[data-aircraft]').forEach((b) =>
     b.addEventListener('click', () => openAircraft(b.dataset.aircraft!)),
   );
-  body.querySelectorAll<HTMLButtonElement>('[data-open-keys]').forEach((b) =>
-    b.addEventListener('click', () => openSettings(SCHEDULE_KEY)),
-  );
 }
 
 // ---- マイリスト（ログインと、登録した列車・飛行機・船・駅） ----
@@ -1248,7 +1306,6 @@ function setupUser() {
     drawStations();
     renderSheet();
     renderMyPanel();
-    renderKeys();
     applySavedSettings();
     renderSettingsNote();
     renderSettingsAccount();
@@ -1261,105 +1318,6 @@ function setupUser() {
   });
   renderMyButton();
   refreshUser();
-}
-
-// ---- 個人設定：API キー（利用者が自分のキーを登録する。ログインしてから） ----
-// AeroDataBox: 空港の時刻表（任意）
-interface KeyProvider {
-  name: ApiKeyName;
-  text: () => { title: string; intro: string; steps: string[]; note: string; placeholder: string; ok: string };
-  /** 使えなければ例外（ScheduleError なら理由別の文言） */
-  test: (key: string) => Promise<void>;
-}
-const KEY_PROVIDERS: KeyProvider[] = [
-  {
-    name: SCHEDULE_KEY,
-    text: () => {
-      const tx = t();
-      return { title: tx.keysTitle, intro: tx.keysIntro, steps: tx.keysSteps, note: tx.keysNote, placeholder: tx.keyPlaceholder, ok: tx.keyOk };
-    },
-    test: testKey,
-  },
-];
-const keysOpen: Partial<Record<ApiKeyName, boolean>> = {};
-const keyMessage: Partial<Record<ApiKeyName, { kind: 'ok' | 'err' | 'busy'; text: string }>> = {};
-
-/** 入力中の内容が消えないよう、自分の操作のときだけ描き直す（1 分ごとの描き直しとは別にしている） */
-function renderKeys() {
-  const el = $('my-keys');
-  const tx = t();
-  const typed = new Map(KEY_PROVIDERS.map((p) => [p.name, el.querySelector<HTMLInputElement>(`[data-key-input="${p.name}"]`)?.value ?? '']));
-  el.innerHTML = KEY_PROVIDERS.map((p) => {
-    const text = p.text();
-    const key = getApiKey(p.name);
-    const msg = keyMessage[p.name];
-    // API キーの登録はログインしてから（キーは本人の Google ドライブに保存する）
-    const form = user.account
-      ? `${key ? `<p class="key-state ok">${tx.keyRegistered(escapeHtml(key.slice(-4)))}</p>` : ''}
-        <input data-key-input="${p.name}" type="password" autocomplete="off" spellcheck="false" placeholder="${text.placeholder}" value="${escapeHtml(typed.get(p.name) ?? '')}">
-        <div class="key-actions">
-          <button type="button" class="primary" data-key-save="${p.name}" ${msg?.kind === 'busy' ? 'disabled' : ''}>${tx.keySaveTest}</button>
-          ${key ? `<button type="button" data-key-delete="${p.name}">${tx.keyDelete}</button>` : ''}
-        </div>
-        ${msg ? `<p class="key-state ${msg.kind === 'busy' ? '' : msg.kind}">${escapeHtml(msg.text)}</p>` : ''}
-        <p class="small">${tx.keysWhereSignedIn} ${tx.keysPrivacy}</p>`
-      : `<p class="key-state">${GOOGLE_CLIENT_ID ? tx.keysNeedLogin : tx.loginUnavailable}</p>
-        ${GOOGLE_CLIENT_ID ? `<button type="button" class="secondary" data-settings-login>${tx.signIn}</button>` : ''}`;
-    return `
-      <details class="keys" data-key-details="${p.name}" ${keysOpen[p.name] ? 'open' : ''}>
-        <summary>${text.title}${key ? ' ✓' : ''}</summary>
-        <p class="small">${text.intro}</p>
-        <ol>${text.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
-        <p class="small">${text.note}</p>
-        ${form}
-      </details>`;
-  }).join('');
-
-  el.querySelectorAll<HTMLDetailsElement>('[data-key-details]').forEach((d) =>
-    d.addEventListener('toggle', () => (keysOpen[d.dataset.keyDetails as ApiKeyName] = d.open)),
-  );
-  el.querySelectorAll('[data-settings-login]').forEach((b) => b.addEventListener('click', () => signIn()));
-  el.querySelectorAll<HTMLButtonElement>('[data-key-save]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const p = KEY_PROVIDERS.find((x) => x.name === b.dataset.keySave)!;
-      const input = el.querySelector<HTMLInputElement>(`[data-key-input="${p.name}"]`)!;
-      const value = (input.value || getApiKey(p.name)).trim();
-      if (!value) return;
-      keyMessage[p.name] = { kind: 'busy', text: tx.keyTesting };
-      renderKeys();
-      try {
-        await p.test(value);
-        setApiKey(p.name, value);
-        keyMessage[p.name] = { kind: 'ok', text: p.text().ok };
-      } catch (err) {
-        const text = err instanceof ScheduleError
-          ? `${tx.keyErrors[err.kind]}${err.kind === 'other' ? ` (${err.message})` : ''}`
-          : err instanceof Error ? err.message : String(err);
-        keyMessage[p.name] = { kind: 'err', text };
-      }
-      const after = el.querySelector<HTMLInputElement>(`[data-key-input="${p.name}"]`);
-      if (after) after.value = '';
-      renderKeys();
-      onKeysChanged();
-    }),
-  );
-  el.querySelectorAll<HTMLButtonElement>('[data-key-delete]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const name = b.dataset.keyDelete as ApiKeyName;
-      setApiKey(name, '');
-      keyMessage[name] = undefined;
-      renderKeys();
-      onKeysChanged();
-    }),
-  );
-}
-
-/** キーを登録・削除したら、空港の時刻表を取り直す */
-function onKeysChanged() {
-  schedules.clear();
-  if (sheet?.kind === 'airport') loadSchedule(airportCode(sheet.name));
-  renderSheet();
-  renderSettingsInfo();
 }
 
 /** ログイン中に保存した設定（言語・表示・レイヤー）を、この端末にも反映する。違うものだけ変えるので何度呼んでもよい */
@@ -1427,15 +1385,10 @@ function renderSettingsInfo() {
     showPlanes.domestic ? tx.domestic : '', showPlanes.international ? tx.international : '', showShips ? tx.ships : '',
     shownLines.length === lines.length ? tx.allLines : shownLines.join('・'),
   ].filter(Boolean).join('、');
-  const keyState = (name: ApiKeyName) => {
-    const key = getApiKey(name);
-    return key ? tx.keyRegistered(escapeHtml(key.slice(-4))) : tx.notSet;
-  };
   const rows: [string, string][] = [
     [tx.infoLanguage, lang === 'ja' ? '日本語' : 'English'],
     [tx.infoTheme, tx.themeNames[getTheme()]],
     [tx.infoLayers, layers],
-    [tx.infoApiKey, `AeroDataBox: ${keyState(SCHEDULE_KEY)}`],
     [tx.infoSavedTo, user.account ? tx.savedDrive(escapeHtml(user.account.name)) : tx.savedDevice],
   ];
   $('settings-info').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
@@ -1639,7 +1592,6 @@ function applyLanguage(l: Lang) {
   drawStations();
   drawAirports();
   renderMyButton();
-  renderKeys();
   renderSettingsAccount();
   renderSettingsInfo();
   if (!$('live-notice').hidden) renderLiveNotice();
@@ -1668,18 +1620,14 @@ function togglePanel(id: string, force?: boolean) {
   document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach((b) => b.classList.toggle('on', !$(NAV_PANEL[b.dataset.nav!] ?? 'map').hidden && !!NAV_PANEL[b.dataset.nav!]));
 }
 
-// ---- 設定（言語・表示モード・個人設定の API キー） ----
-/** showKey: そのキーの欄を開いて見せる */
-function openSettings(showKey?: ApiKeyName) {
-  if (showKey) keysOpen[showKey] = true;
+// ---- 設定（言語・表示モード） ----
+function openSettings() {
   togglePanel('settings-panel', true);
   if (GOOGLE_CLIENT_ID) preloadGoogle().catch(() => {}); // ログインのポップアップをタップ直後に開けるように
   renderSettingsAccount();
   renderSettingsNote();
   renderSettingsInfo();
   renderThemeButtons();
-  renderKeys();
-  if (showKey) $('my-keys').querySelector(`[data-key-details="${showKey}"]`)?.scrollIntoView({ block: 'nearest' });
 }
 $('settings-close').addEventListener('click', () => togglePanel('settings-panel', false));
 

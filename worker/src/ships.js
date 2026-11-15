@@ -1,6 +1,8 @@
 // 日本近海の旅客船を aisstream.io の AIS データから集める。
 // 位置と船種は別のメッセージで届く（船種は約6分おき）ため、接続を保ったまま貯めておく。
 
+import { FlightLog } from './flights.js';
+
 const AIS_URL = 'wss://stream.aisstream.io/v0/stream';
 // [[南西の緯度, 経度], [北東の緯度, 経度]]: 日本の排他的経済水域を囲む範囲（細かい判定はフロントエンドで行う）
 const BOX = [[17.0, 122.0], [48.0, 158.0]];
@@ -139,17 +141,22 @@ export async function connect(apiKey, store, onClose) {
 // 船種は約6分おきにしか届かず、日本近海では届かないことも多いので、誰も見ていなくても接続を保って
 // 旅客船の船名・船種を貯めておく（無料枠: 128MB × 24時間 ≒ 10,800 GB 秒/日。上限は 13,000）
 const ALARM_MS = 30 * 1000;
+// 便の観測（flights.js）は、書き込みの回数を抑えるため 5 分ごとにまとめて保存する（1 回の put は 128 件まで）
+const FLIGHT_SAVE_MS = 5 * 60 * 1000;
 
-/** AIS への接続を保つ Durable Object（日本全体で1つ） */
+/** AIS への接続を保つ Durable Object（日本全体で1つ）。空港の発着のふだんの時刻（flights.js）もここで覚える */
 export class ShipTracker {
   constructor(state, env) {
     this.state = state;
     this.env = env;
     this.store = new ShipStore();
+    this.flights = new FlightLog();
+    this.flightsSavedAt = Date.now();
     this.ws = null;
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get('statics');
       if (saved) this.store.statics = new Map(saved);
+      this.flights.load(await state.storage.list({ prefix: 'f:' }));
     });
   }
 
@@ -169,9 +176,18 @@ export class ShipTracker {
     }
   }
 
-  async fetch() {
-    await this.ensureConnected();
+  async fetch(request) {
+    const url = new URL(request.url);
     if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + ALARM_MS);
+    if (url.pathname === '/flights/observe') {
+      const { now, obs } = await request.json();
+      this.flights.observe(now, obs);
+      return Response.json({ ok: true });
+    }
+    if (url.pathname === '/airport') {
+      return Response.json(this.flights.airport(url.searchParams.get('code') ?? '', Date.now()));
+    }
+    await this.ensureConnected();
     const ships = this.store.passengers();
     return Response.json({
       now: Date.now(),
@@ -184,7 +200,22 @@ export class ShipTracker {
 
   async alarm() {
     await this.state.storage.put('statics', this.store.passengerStatics());
+    if (Date.now() - this.flightsSavedAt > FLIGHT_SAVE_MS) await this.saveFlights();
     await this.ensureConnected();
     await this.state.storage.setAlarm(Date.now() + ALARM_MS);
+  }
+
+  async saveFlights() {
+    const f = this.flights;
+    f.prune(Date.now());
+    const keys = [...f.dirty];
+    for (let i = 0; i < keys.length; i += 128) {
+      await this.state.storage.put(Object.fromEntries(keys.slice(i, i + 128).map((k) => [`f:${k}`, f.records.get(k)])));
+    }
+    const removed = [...f.removed].map((k) => `f:${k}`);
+    for (let i = 0; i < removed.length; i += 128) await this.state.storage.delete(removed.slice(i, i + 128));
+    f.dirty.clear();
+    f.removed.clear();
+    this.flightsSavedAt = Date.now();
   }
 }

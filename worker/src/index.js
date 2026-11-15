@@ -2,15 +2,21 @@
 // 航空機: adsb.lol から集め、国内線・国際線を判定する。
 // 旅客船: ships.js の Durable Object が aisstream.io の AIS データを集める。GET /ships -> { now, connected, ships: [...] }
 // GET /aircraft -> { now, ac: [[hex, callsign, lat, lon, 高度ft, 対地速度kt, 針路, 機種, 登録記号, 国際線=1/国内線=0, 位置の古さ秒, 出発, 到着, 到着地の緯度, 経度, 便名(NH1098 など)]] }
+// GET /airport?code=HND -> { now, usual: { dep, arr }, official: { dep, arr } | null }
+//   usual: 飛行中の便の観測から作った、ふだんの離陸・着陸の時刻（flights.js。全社の便）
+//   official: 公共交通オープンデータセンターの JAL・ANA の発着情報（secret の ODPT_KEY があるときだけ）
+// 2 分ごとの定期実行（wrangler.toml の crons）で飛行機を集め、便の観測を Durable Object に渡す（誰も見ていなくても覚えるため）
 //
 // 無料枠に収めるため:
-// - 結果は 30 秒キャッシュし、上流へのアクセスは 30 秒に 1 回にする
+// - 結果は 30 秒キャッシュし、上流へのアクセスは 30 秒に 1 回にする（定期実行は 2 分に 1 回）
 // - 1 回の実行の外部リクエストは 50 件まで
-//   （取得 12 + やり直し 12 + 経路照会 16 + キャッシュの読み書き 最大 6 = 46 件）
+//   （取得 12 + やり直し 12 + 経路照会 16 + キャッシュの読み書き 最大 6 + Durable Object 1 = 47 件）
 
 const CACHE_SECONDS = 30;
+const AIRPORT_CACHE_SECONDS = 300;
 const ROUTE_LOOKUPS_PER_RUN = 16;
-const ROUTE_CACHE_URL = 'https://cache.internal/routes-v3';
+const ROUTE_CACHE_URL = 'https://cache.internal/routes-v4';
+const ODPT_API = 'https://api.odpt.org/api/v4';
 // 直近にうまく取れた航空機の結果（上流が不調なときに使う）
 const LAST_GOOD_URL = 'https://cache.internal/aircraft-last-good';
 
@@ -37,20 +43,31 @@ const json = (body, status = 200, extra = {}) =>
 
 export { ShipTracker } from './ships.js';
 
+const tracker = (env) => env.SHIPS.get(env.SHIPS.idFromName('japan'));
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname !== '/aircraft' && url.pathname !== '/ships') return json({ error: 'not found' }, 404);
+    if (url.pathname !== '/aircraft' && url.pathname !== '/ships' && url.pathname !== '/airport') return json({ error: 'not found' }, 404);
+    const code = url.searchParams.get('code') ?? '';
+    if (url.pathname === '/airport' && !/^[A-Z]{3}$/.test(code)) return json({ error: 'bad code' }, 400);
 
     const cache = caches.default;
-    const key = new Request(`${url.origin}${url.pathname}`);
+    const key = new Request(`${url.origin}${url.pathname}${url.pathname === '/airport' ? `?code=${code}` : ''}`);
     const hit = await cache.match(key);
     if (hit) return hit;
 
     let maxAge = CACHE_SECONDS;
     let body;
-    if (url.pathname === '/aircraft') {
-      body = await collect(cache, ctx);
+    if (url.pathname === '/airport') {
+      const [usual, official] = await Promise.all([
+        tracker(env).fetch(`https://tracker/airport?code=${code}`).then((r) => r.json()),
+        env.ODPT_KEY ? fetchOfficial(code, env.ODPT_KEY) : null,
+      ]);
+      body = { now: Date.now(), usual, official };
+      maxAge = AIRPORT_CACHE_SECONDS;
+    } else if (url.pathname === '/aircraft') {
+      body = (await collect(cache, ctx))?.body;
       if (body) {
         ctx.waitUntil(cache.put(LAST_GOOD_URL, json(body, 200, { 'cache-control': 'public, max-age=300' })));
       } else {
@@ -60,13 +77,54 @@ export default {
       }
     } else {
       // 旅客船は Durable Object が AIS に接続して集めている
-      body = await env.SHIPS.get(env.SHIPS.idFromName('japan')).fetch(request).then((r) => r.json());
+      body = await tracker(env).fetch(request).then((r) => r.json());
     }
     const res = json(body, 200, { 'cache-control': `public, max-age=${maxAge}` });
     ctx.waitUntil(cache.put(key, res.clone()));
     return res;
   },
+
+  /** 定期実行: 飛行機を集め、便の観測を Durable Object に渡す（空港の発着のふだんの時刻を作るため） */
+  async scheduled(event, env, ctx) {
+    const cache = caches.default;
+    const got = await collect(cache, ctx);
+    if (!got) return;
+    ctx.waitUntil(cache.put(LAST_GOOD_URL, json(got.body, 200, { 'cache-control': 'public, max-age=300' })));
+    await tracker(env).fetch('https://tracker/flights/observe', { method: 'POST', body: JSON.stringify({ now: got.body.now, obs: got.obs }) });
+  },
 };
+
+/**
+ * 公共交通オープンデータセンターの JAL・ANA の発着情報（出発・到着）。取れなければ null。
+ * 各行: { n: 便名の一覧, s: 状態, t: 定刻 "HH:MM", e: 見込み, a: 実績, o: 相手の空港, g: ゲート, m: ターミナル }
+ */
+async function fetchOfficial(code, key) {
+  const ap = `odpt.Airport:${code}`;
+  const tail = (v) => (typeof v === 'string' ? v.slice(v.lastIndexOf(':') + 1) : '');
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const get = async (type, field) => {
+    const r = await fetch(`${ODPT_API}/odpt:${type}?odpt:${field}=${ap}&acl:consumerKey=${encodeURIComponent(key)}`);
+    if (!r.ok) throw new Error(`odpt ${r.status}`);
+    // 絞り込みが効かなくても、その空港の便だけにする
+    return ((await r.json()) ?? []).filter((x) => x[`odpt:${field}`] === ap);
+  };
+  try {
+    const [dep, arr] = await Promise.all([get('FlightInformationDeparture', 'departureAirport'), get('FlightInformationArrival', 'arrivalAirport')]);
+    const row = (x, kind) => ({
+      n: [x['odpt:flightNumber'] ?? []].flat(),
+      s: tail(x['odpt:flightStatus']),
+      t: x[`odpt:scheduled${kind}Time`] ?? '',
+      e: x[`odpt:estimated${kind}Time`] ?? '',
+      a: x[`odpt:actual${kind}Time`] ?? '',
+      o: tail(first(kind === 'Departure' ? x['odpt:destinationAirport'] : x['odpt:originAirport'])),
+      g: x[`odpt:${kind.toLowerCase()}Gate`] ?? '',
+      m: x[`odpt:${kind.toLowerCase()}AirportTerminal`] ? tail(x[`odpt:${kind.toLowerCase()}AirportTerminal`]) : '',
+    });
+    return { dep: dep.map((x) => row(x, 'Departure')), arr: arr.map((x) => row(x, 'Arrival')) };
+  } catch {
+    return null;
+  }
+}
 
 // 失敗したら 1 回だけやり直す。失敗なら null
 async function fetchCircle(lat, lon, retry = true) {
@@ -96,7 +154,10 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-/** 半分以上の円で取得に失敗したら null */
+/**
+ * 半分以上の円で取得に失敗したら null。
+ * obs: 経路の分かった便の観測 [コールサイン, 便名, 出発, 到着, 国際線=1, 緯度, 経度, 高度ft, 対地速度kt, 出発地の緯度, 経度, 到着地の緯度, 経度]
+ */
 async function collect(cache, ctx) {
   const lists = await mapLimit(CIRCLES, 4, ([lat, lon]) => fetchCircle(lat, lon));
   if (lists.filter((l) => l === null).length > CIRCLES.length / 2) return null;
@@ -110,7 +171,7 @@ async function collect(cache, ctx) {
     if (!prev || (a.seen_pos ?? 0) < (prev.seen_pos ?? 0)) byHex.set(a.hex, a);
   }
 
-  // 経路のキャッシュ（コールサイン -> [出発IATA, 到着IATA, 国際線?, 到着地の緯度, 経度, 便名] / null=不明）
+  // 経路のキャッシュ（コールサイン -> [出発IATA, 到着IATA, 国際線?, 到着地の緯度, 経度, 便名, 出発地の緯度, 経度] / null=不明）
   const routes = (await cache.match(ROUTE_CACHE_URL).then((r) => (r ? r.json() : {})).catch(() => ({})));
   const pending = [];
   // 空港の発着一覧に出すため、航空会社の便はすべて経路を調べる（国内線・国際線の両方を飛ぶ会社を優先）
@@ -130,6 +191,7 @@ async function collect(cache, ctx) {
           return [cs, [
             f.origin.iata_code, f.destination.iata_code, intl ? 1 : 0,
             round(f.destination.latitude, 3), round(f.destination.longitude, 3), f.callsign_iata ?? '',
+            round(f.origin.latitude, 3), round(f.origin.longitude, 3),
           ]];
         })
         .catch(() => [cs, undefined]),
@@ -156,7 +218,14 @@ async function collect(cache, ctx) {
       round(a.seen_pos ?? 0, 1), route?.[0] ?? '', route?.[1] ?? '', route?.[3] ?? null, route?.[4] ?? null, route?.[5] ?? '',
     ];
   });
-  return { now: Date.now(), ac };
+  const obs = [];
+  for (const a of byHex.values()) {
+    const cs = (a.flight ?? '').trim();
+    const route = routes[cs];
+    if (!route || typeof a.alt_baro !== 'number') continue;
+    obs.push([cs, route[5], route[0], route[1], route[2], a.lat, a.lon, a.alt_baro, a.gs ?? null, route[6] ?? null, route[7] ?? null, route[3], route[4]]);
+  }
+  return { body: { now: Date.now(), ac }, obs };
 }
 
 /** 経路がわからないときの判定: 国際線=1 / 国内線=0 */

@@ -11,5 +11,10 @@ class_name = "ShipTracker"
 tag = "v1"
 new_sqlite_classes = ["ShipTracker"]
 
+# 2 分ごとに飛行機を集め、空港の発着のふだんの時刻を覚える（index.js の scheduled）
+[triggers]
+crons = ["*/2 * * * *"]
+
 # aisstream.io の API キーは secret で渡す: npx wrangler secret put AISSTREAM_API_KEY
+# 公共交通オープンデータセンターのキー（JAL・ANA の発着情報。任意）: npx wrangler secret put ODPT_KEY
 # ローカルでは worker/.dev.vars に AISSTREAM_API_KEY=... と書く（コミットしない）

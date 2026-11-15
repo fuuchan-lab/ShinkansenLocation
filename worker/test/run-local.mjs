@@ -41,7 +41,12 @@ let alarmTimer = null;
 const state = {
   storage: {
     get: async (k) => doStorage.get(k),
-    put: async (k, v) => void doStorage.set(k, v),
+    put: async (k, v) => {
+      if (typeof k === 'string') doStorage.set(k, v);
+      else for (const [kk, vv] of Object.entries(k)) doStorage.set(kk, vv);
+    },
+    delete: async (k) => [k].flat().forEach((kk) => doStorage.delete(kk)),
+    list: async ({ prefix = '' } = {}) => new Map([...doStorage].filter(([k]) => k.startsWith(prefix))),
     getAlarm: async () => (alarmTimer ? 1 : null),
     setAlarm: async (t) => {
       clearTimeout(alarmTimer);
@@ -69,9 +74,31 @@ const env = {
   ...vars,
   SHIPS: {
     idFromName: () => 'japan',
-    get: () => ({ fetch: async (req) => (vars.AISSTREAM_API_KEY ? tracker.fetch(req) : fixture()) }),
+    get: () => ({
+      fetch: async (input, init) => {
+        const req = typeof input === 'string' ? new Request(input, init) : input;
+        // 旅客船は AIS のキーがなければ疑似データ。空港の発着（便の観測）はいつも本物の処理
+        if (new URL(req.url).pathname === '/ships' && !vars.AISSTREAM_API_KEY) return fixture();
+        return tracker.fetch(req);
+      },
+    }),
   },
 };
+
+// 定期実行（本番は 2 分ごと）。CRON_SEC で間隔を変えられる
+const cronMs = Number(process.env.CRON_SEC ?? 120) * 1000;
+const runCron = async () => {
+  const pending = [];
+  const t = Date.now();
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) }).catch((e) => console.log('cron error', e));
+  await Promise.all(pending);
+  const days = [...tracker.flights.records.values()].flatMap((r) => Object.values(r.days));
+  const dep = days.filter((d) => d[0] !== null).length;
+  const arr = days.filter((d) => d[2] !== null).length;
+  console.log(`cron ${Date.now() - t}ms records ${tracker.flights.records.size} takeoffs ${dep} landings ${arr}`);
+};
+setInterval(runCron, cronMs);
+runCron();
 
 const port = Number(process.argv[2] ?? 8787);
 http

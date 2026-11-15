@@ -1,7 +1,7 @@
 // Google アカウントでのログインと、利用者の登録内容（トラッキング中の列車・飛行機・船、お気に入りの駅）の保存。
 // ログインは Google Identity Services のトークン方式で、ブラウザだけで完結する（LeadLog と同じ）。
 // 保存先は利用者の Google ドライブのアプリ専用領域（appDataFolder）の user.json。
-// 利用者のドライブの一覧には出ず、このアプリからしか読み書きできない。今後、個人の API キーなどもここに保存する
+// 利用者のドライブの一覧には出ず、このアプリからしか読み書きできない
 
 /** OAuth クライアント ID（公開してよい値）。未設定ならログイン機能を出さない */
 export const GOOGLE_CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
@@ -20,13 +20,19 @@ export interface Settings {
   international?: boolean;
   ships?: boolean;
 }
-/** 個人の API キー（利用者が自分で契約・登録する）。ログイン中は Google ドライブのアプリ専用領域に、ゲストはこの端末だけに保存する */
-export type ApiKeyName = 'aerodatabox';
-export type ApiKeys = Partial<Record<ApiKeyName, string>>;
-export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings; keys: ApiKeys }
+export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings }
 export interface Account { name: string; picture: string }
 
-const emptyData = (): UserData => ({ version: 1, favorites: { train: [], aircraft: [], ship: [], station: [] }, settings: {}, keys: {} });
+const emptyData = (): UserData => ({ version: 1, favorites: { train: [], aircraft: [], ship: [], station: [] }, settings: {} });
+
+/**
+ * 保存した内容を今の形にそろえる。以前登録できた API キー（aisstream.io・AeroDataBox）は使わなくなったので読み込まない
+ * （次の保存でドライブからも消える）
+ */
+function clean(d: Partial<UserData> & { keys?: unknown }): UserData {
+  const { keys: _old, ...rest } = d;
+  return { ...emptyData(), ...rest, favorites: { ...emptyData().favorites, ...rest.favorites }, settings: { ...rest.settings } };
+}
 
 const KEY = { token: 'auth.token', account: 'auth.account', data: 'user.data' };
 function load<T>(key: string): T | null {
@@ -52,7 +58,7 @@ const cachedAccount = load<Account>(KEY.account);
 /** 画面に出す状態。account が null ならゲスト（閲覧のみ） */
 export const user = {
   account: cachedAccount,
-  data: (cachedAccount && load<UserData>(KEY.data)) || emptyData(),
+  data: clean((cachedAccount && load<UserData>(KEY.data)) || {}),
   busy: false,
   error: '',
 };
@@ -155,9 +161,7 @@ async function readRemote(): Promise<UserData | null> {
   fileId = list.files[0]?.id ?? null;
   if (!fileId) return null;
   const d = (await (await api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json()) as Partial<UserData>;
-  // 以前登録できた aisstream.io のキーは使わなくなったので読み込まない（次の保存でドライブからも消える）
-  const keys: ApiKeys = d.keys?.aerodatabox ? { aerodatabox: d.keys.aerodatabox } : {};
-  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites }, settings: { ...d.settings }, keys };
+  return clean(d);
 }
 
 async function writeRemote(d: UserData) {
@@ -258,23 +262,6 @@ export function saveSettings(patch: Settings): boolean {
   return true;
 }
 
-
-/** 登録した API キー（ログイン中だけ。Google ドライブに保存したもの）。なければ空 */
-export function getApiKey(name: ApiKeyName): string {
-  return (user.account && user.data.keys[name]) || '';
-}
-
-/** API キーを登録・削除する（空なら削除）。ログイン中だけ。タップの処理から呼ぶ */
-export function setApiKey(name: ApiKeyName, value: string) {
-  if (!user.account) return;
-  const v = value.trim();
-  const keys = { ...user.data.keys };
-  if (v) keys[name] = v;
-  else delete keys[name];
-  setData({ ...user.data, keys });
-  emit();
-  persist();
-}
 
 function persist() {
   // トークンが切れていたらここでポップアップを開く（タップの直後でないと開けない）
