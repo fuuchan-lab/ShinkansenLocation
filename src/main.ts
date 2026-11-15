@@ -1716,7 +1716,8 @@ document.addEventListener('click', (e) => {
   const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-doc]');
   if (!a) return;
   e.preventDefault();
-  openDoc(`${a.getAttribute('href')!.split('#')[0]}${lang === 'en' ? '#en' : ''}`);
+  const [path, part] = a.getAttribute('href')!.split('#');
+  openDoc(part ? `${path}#${lang}-${part}` : `${path}${lang === 'en' ? '#en' : ''}`);
 });
 $('filter-close').addEventListener('click', () => togglePanel('filter-panel', false));
 $('search-close').addEventListener('click', () => togglePanel('search-panel', false));

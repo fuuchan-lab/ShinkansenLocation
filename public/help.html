@@ -11,8 +11,18 @@
       nav { margin: 0 48px 16px 0; font-size: 0.95rem; }
       .toc { columns: 2; font-size: 0.92rem; padding-left: 1.2em; }
       .icon { display: inline-block; min-width: 1.4em; text-align: center; }
+      .donate { background: #fff8f6; border: 1px solid #e3c9c9; border-radius: 10px; padding: 4px 16px 12px; margin: 12px 0; }
+      .amt-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+      .amt-chips button { background: #fff; border: 2px solid #f2b98a; color: #c0561a; font-weight: bold; border-radius: 999px; padding: 0.35em 1.1em; cursor: pointer; font-size: 0.95em; }
+      .amt-chips button:hover, .amt-chips button.on { background: #f28c38; border-color: #f28c38; color: #fff; }
+      .donate-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+      .donate-row input { padding: 0.45em 0.65em; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; width: 90px; }
+      .paypal-btn { display: inline-flex; align-items: center; gap: 10px; background: #ffc439; color: #111; font-weight: bold; font-size: 16px; padding: 0.65em 1.8em; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18); }
+      .paypal-btn:hover { background: #f2b52e; }
+      .paypal-btn img { height: 24px; width: auto; display: block; }
+      .donate-note { font-size: 13px; color: #666; line-height: 1.8; }
       .doc-close { position: fixed; top: 10px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #d5dae1; background: #fff; font-size: 20px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); }
-      @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } .doc-close { background: #1e293b; color: #e5e7eb; border-color: #334155; } }
+      @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } .donate { background: #2a2320; border-color: #5b4038; } .amt-chips button { background: #1e293b; } .donate-row input { background: #0f172a; color: #e5e7eb; border-color: #334155; } .donate-note { color: #9ca3af; } .doc-close { background: #1e293b; color: #e5e7eb; border-color: #334155; } }
       @media (max-width: 520px) { .toc { columns: 1; } }
     </style>
   </head>
@@ -33,6 +43,7 @@
         <li><a href="#ja-data">データについて</a></li>
         <li><a href="#ja-official">公式の運行情報</a></li>
         <li><a href="#ja-author">作者について・お問い合わせ</a></li>
+        <li><a href="#ja-donate">運営資金のご協力</a></li>
       </ol>
 
       <h2 id="ja-about">1. このアプリについて</h2>
@@ -131,6 +142,29 @@
       <p><strong>Harry</strong>（ハリー）：名古屋を拠点に世界を飛び回る会社員。何でも自分で探し、作り、直すまで納得しないタイプで、ブログ「<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>」でデジタルガジェットや DIY のデジタル生活を紹介しています。</p>
       <p><strong>DoItMyself</strong>（<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>）：Harry が自分で作ったアプリを公開している場所です。</p>
       <p>要望・不具合は、アプリの「設定」から送るか、<a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub の Issues</a> へお寄せください。</p>
+      <p>アプリを気に入っていただけたら、<a href="#ja-donate">運営資金のご協力</a>をお願いします。</p>
+
+      <h2 id="ja-donate">11. 運営資金のご協力</h2>
+      <p>のりものレーダーは、無料・広告なしで公開しています。中継サーバーやドメインなど、続けるための費用は作者が負担しています。アプリを気に入っていただけたら、コーヒー1杯分の <strong>200円</strong> からご支援いただけるとうれしいです。</p>
+      <div class="donate">
+        <h3>PayPal で安全にご支援いただけます</h3>
+        <form action="https://www.paypal.com/jp/cgi-bin/webscr" method="post" target="_blank">
+          <input type="hidden" name="cmd" value="_xclick" />
+          <input type="hidden" name="business" value="admin@youme.info" />
+          <input type="hidden" name="item_name" value="Donate to Norimono Radar" />
+          <input type="hidden" name="currency_code" value="JPY" />
+          <div class="amt-chips"><button type="button" class="on" data-amount="200">200円</button><button type="button" data-amount="500">500円</button><button type="button" data-amount="1000">1,000円</button><button type="button" data-amount="3000">3,000円</button></div>
+          <div class="donate-row">
+            <label for="donate-amt-ja"><strong>ご寄付額</strong></label>
+            <input type="text" id="donate-amt-ja" name="amount" value="200" inputmode="numeric" />
+            <strong>円</strong>
+          </div>
+          <button type="submit" class="paypal-btn"><img src="https://www.paypalobjects.com/images/shared/paypal-logo-129x32.svg" alt="PayPal" /><span>で寄付する</span></button>
+        </form>
+        <p class="donate-note">※ 金額を選ぶか入力してボタンを押すと、PayPal の決済ページが新しいタブで開きます。<br />
+        ※ 支払先は運営出納代行会社の「ユーアンドミーテクノロジー」と表示されます（<a href="https://www.youme.info" target="_blank" rel="noopener">https://www.youme.info</a>）。</p>
+      </div>
+      <p>一つひとつのご支援が、このアプリを続ける大きな力になります。心より感謝申し上げます。</p>
     </section>
 
     <section lang="en" id="en">
@@ -146,6 +180,7 @@
         <li><a href="#en-data">About the data</a></li>
         <li><a href="#en-official">Official service info</a></li>
         <li><a href="#en-author">Author and contact</a></li>
+        <li><a href="#en-donate">Support the app</a></li>
       </ol>
 
       <h2 id="en-about">1. About</h2>
@@ -244,6 +279,29 @@
       <p><strong>Harry</strong>: an office worker based in Nagoya who travels the world and is never satisfied until things are found, built or fixed by hand. Harry writes about digital gadgets and a DIY digital life on the blog "<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>" (in Japanese).</p>
       <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes handmade apps.</p>
       <p>Send requests or bug reports from the app's Settings, or via <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+      <p>If you like the app, please consider <a href="#en-donate">supporting it</a>.</p>
+
+      <h2 id="en-donate">11. Support the app</h2>
+      <p>Norimono Radar is free and has no ads. The author pays for the relay server, the domain and other running costs. If you like the app, a donation from <strong>200 yen</strong> (about a cup of coffee) would be greatly appreciated.</p>
+      <div class="donate">
+        <h3>Donate securely with PayPal</h3>
+        <form action="https://www.paypal.com/jp/cgi-bin/webscr" method="post" target="_blank">
+          <input type="hidden" name="cmd" value="_xclick" />
+          <input type="hidden" name="business" value="admin@youme.info" />
+          <input type="hidden" name="item_name" value="Donate to Norimono Radar" />
+          <input type="hidden" name="currency_code" value="JPY" />
+          <div class="amt-chips"><button type="button" class="on" data-amount="200">¥200</button><button type="button" data-amount="500">¥500</button><button type="button" data-amount="1000">¥1,000</button><button type="button" data-amount="3000">¥3,000</button></div>
+          <div class="donate-row">
+            <label for="donate-amt-en"><strong>Amount</strong></label>
+            <input type="text" id="donate-amt-en" name="amount" value="200" inputmode="numeric" />
+            <strong>yen</strong>
+          </div>
+          <button type="submit" class="paypal-btn"><img src="https://www.paypalobjects.com/images/shared/paypal-logo-129x32.svg" alt="PayPal" /><span>Donate</span></button>
+        </form>
+        <p class="donate-note">* Choose or enter an amount and press the button. PayPal's payment page opens in a new tab.<br />
+        * The payee is shown as 「ユーアンドミーテクノロジー」, the company that handles the payments (<a href="https://www.youme.info" target="_blank" rel="noopener">https://www.youme.info</a>).</p>
+      </div>
+      <p>Every bit of support helps keep the app running. Thank you very much.</p>
     </section>
 
     <script>
@@ -255,6 +313,13 @@
       }
       // アプリの中で開いたときは、アプリの × を使う（重ならないよう、ページの × は隠す）
       if (window.parent !== window) document.querySelector('.doc-close').hidden = true;
+      // 寄付額のボタン: 押した金額を入力欄に入れる
+      document.querySelectorAll('.amt-chips button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          b.closest('form').querySelector('[name=amount]').value = b.dataset.amount;
+          b.parentNode.querySelectorAll('button').forEach(function (o) { o.classList.toggle('on', o === b); });
+        });
+      });
     </script>
   </body>
 </html>
