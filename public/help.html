@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ヘルプ / Help — のりものレーダー</title>
+    <style>
+      body { font-family: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif; max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; line-height: 1.7; color: #1f2937; background: #f4f6fb; }
+      h1 { font-size: 1.5rem; margin-right: 48px; } h2 { font-size: 1.15rem; margin-top: 1.8em; } h3 { font-size: 1rem; margin-bottom: 0.3em; }
+      section { background: #fff; border-radius: 12px; padding: 8px 20px 16px; margin-bottom: 24px; }
+      nav { margin: 0 48px 16px 0; font-size: 0.95rem; }
+      .toc { columns: 2; font-size: 0.92rem; padding-left: 1.2em; }
+      .icon { display: inline-block; min-width: 1.4em; text-align: center; }
+      .doc-close { position: fixed; top: 10px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #d5dae1; background: #fff; font-size: 20px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); }
+      @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } .doc-close { background: #1e293b; color: #e5e7eb; border-color: #334155; } }
+      @media (max-width: 520px) { .toc { columns: 1; } }
+    </style>
+  </head>
+  <body>
+    <button type="button" class="doc-close" aria-label="閉じる / Close" onclick="closeDoc()">×</button>
+    <nav><a href="#ja">日本語</a> ・ <a href="#en">English</a> ・ <a href="privacy.html">プライバシーポリシー / Privacy</a></nav>
+
+    <section lang="ja" id="ja">
+      <h1>ヘルプ（のりものレーダー）</h1>
+      <ol class="toc">
+        <li><a href="#ja-about">このアプリについて</a></li>
+        <li><a href="#ja-screen">画面の見かた</a></li>
+        <li><a href="#ja-menu">下のメニュー</a></li>
+        <li><a href="#ja-info">列車・駅・空港・飛行機・船</a></li>
+        <li><a href="#ja-login">ログインとマイリスト</a></li>
+        <li><a href="#ja-settings">設定</a></li>
+        <li><a href="#ja-keys">API キーの登録</a></li>
+        <li><a href="#ja-data">データについて</a></li>
+        <li><a href="#ja-official">公式の運行情報</a></li>
+        <li><a href="#ja-author">作者について・お問い合わせ</a></li>
+      </ol>
+
+      <h2 id="ja-about">1. このアプリについて</h2>
+      <p>日本のすべての新幹線と、日本の上空の飛行機・近海の旅客船の「いまどこにいるか」を地図に表示するアプリです。スマホでも PC でも使えます。</p>
+      <p>新幹線の位置は、運転パターンから作った<strong>推定時刻表</strong>をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。実際の運行状況は、各社の公式情報で確認してください。</p>
+
+      <h2 id="ja-screen">2. 画面の見かた</h2>
+      <ul>
+        <li><strong>上の帯</strong>：アプリ名、時刻と「新幹線の本数・✈飛行機の数・⛴旅客船の数」、右上に Google ログインのボタン。</li>
+        <li><strong>時刻</strong>をタップすると、表示する時刻を変えたり、×10・×60 で早送りしたりできます（夜の確認用）。</li>
+        <li><span class="icon">▲</span><strong>新幹線</strong>：路線の色の細い三角で、進行方向を向いています。駅に止まっている列車は、のりばのように並べています（推定）。</li>
+        <li><span class="icon">✈</span><strong>飛行機</strong>：国内線は黄色、国際線はピンク。機首が進行方向です。</li>
+        <li><span class="icon">⛴</span><strong>旅客船</strong>：濃い水色の、上から見た船の形。船首が進行方向です。</li>
+        <li><strong>駅・空港</strong>：拡大すると名前が出ます。空港の名前の下は空港コード（HND など）です。</li>
+        <li>トラッキング中・お気に入りのものは、アイコンの白い縁取りが太くなり、縮小しても名前が出ます。</li>
+        <li>破線の内側が表示範囲（陸地を含む日本の排他的経済水域）です。</li>
+      </ul>
+
+      <h2 id="ja-menu">3. 下のメニュー</h2>
+      <ul>
+        <li><strong>フィルター</strong>：国内線・国際線・旅客船・各路線の表示を切り替えます。</li>
+        <li><strong>検索</strong>：駅・空港（空港コードも可）・走っている列車（のぞみ1 など）・便名（NH20 など）・船名で探し、タップするとその場所へ移ります。</li>
+        <li><strong>現在地</strong>：自分のいる場所へ移ります（位置情報の許可が必要です）。</li>
+        <li><strong>マイリスト</strong>：トラッキング中の列車・飛行機・船と、お気に入りの駅の一覧です（ログインが必要）。</li>
+        <li><strong>設定</strong>：アカウント、言語、表示モード（ライト・ダーク）、API キー、いまの設定、このヘルプ。</li>
+      </ul>
+
+      <h2 id="ja-info">4. 列車・駅・空港・飛行機・船</h2>
+      <ul>
+        <li><strong>列車</strong>をタップ：行先・次の停車駅・停車駅の時刻・推定速度。列車を追いかけて表示します。駅名をタップすると、その駅の時刻表へ。</li>
+        <li><strong>駅</strong>をタップ：その駅の時刻表（下り・上り）。今の時間帯に色が付き、今の時刻に赤い線が出ます。</li>
+        <li><strong>空港</strong>をタップ：国内線・国際線のタブで、発着の便を表示します。API キー（AeroDataBox）を登録すると、出発は今後12時間・到着は前後2時間の時刻表が出ます。登録していないときは、いま飛んでいる便だけです。</li>
+        <li><strong>飛行機・船</strong>をタップ：便名・経路・高度・速度・機種、船名・速力・行先など。</li>
+      </ul>
+
+      <h2 id="ja-login">5. ログインとマイリスト</h2>
+      <p>見るだけなら、ログインは要りません（ゲスト）。ログインすると、次のことができます。</p>
+      <ul>
+        <li>列車・飛行機・船の<strong>トラッキング</strong>と、<strong>お気に入りの駅</strong>の登録（情報の画面の ☆ を押す）。</li>
+        <li>言語・表示モード・表示の切り替えの設定を保存し、ほかの端末でも同じ設定で使う。</li>
+        <li>API キーの登録（下の 7）。</li>
+      </ul>
+      <h3>ログインのしかた</h3>
+      <ol>
+        <li>右上の「ログイン」を押し、Google アカウントを選ぶ。</li>
+        <li>確認の画面で、このアプリが Google ドライブの「アプリ専用の領域」を使うことを許可する（チェックを入れて「続行」）。ドライブのほかのファイルは読みません。</li>
+        <li>ログインすると、ボタンがプロフィール画像と「Google 接続中」になり、縁が緑に光ります。押すと、アカウントの切り替えやログアウトができます。</li>
+      </ol>
+      <p>保存のしくみは<a href="privacy.html">プライバシーポリシー</a>にあります。</p>
+
+      <h2 id="ja-settings">6. 設定</h2>
+      <ul>
+        <li><strong>言語</strong>：日本語・English。最初はブラウザの言語に合わせます。</li>
+        <li><strong>表示モード</strong>：自動（端末に合わせる）・ライト・ダーク。ダークでは地図も暗くなります。</li>
+        <li><strong>いまの設定</strong>：言語・表示モード・表示中のもの・API キー・設定の保存先を確認できます。</li>
+        <li>設定の画面から、要望や不具合を送ることもできます（GitHub の Issue が開きます）。</li>
+      </ul>
+
+      <h2 id="ja-keys">7. API キーの登録</h2>
+      <p>飛行機と旅客船は、ゲストは<strong>ページを開いてから5分だけ</strong>表示します（作者の中継サーバーと API キーを使うため）。続けて見るには、ご自身の API キー（無料）を登録してください。API キーの登録には、Google ログインが必要です。キーはあなたの Google ドライブに保存され、作者が受け取ることはありません。</p>
+      <h3>aisstream.io（飛行機・旅客船を続けて見る）</h3>
+      <ol>
+        <li><a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> を開き、GitHub アカウントでサインインする（無料）。</li>
+        <li>「API Keys」で「Create New API Key」を押す。</li>
+        <li>キーをコピーし、「設定」→「API キー：飛行機・旅客船」の欄に貼り付けて「保存してテスト」を押す。</li>
+      </ol>
+      <p>登録すると、旅客船はあなたのブラウザから aisstream.io へ直接つないで受信します。船種は約6分おきにしか届かないため、登録してすぐは表示される船が少なめです。</p>
+      <h3>AeroDataBox（空港の時刻表）</h3>
+      <ol>
+        <li><a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI</a> に無料で登録する。</li>
+        <li><a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox の料金ページ</a>で、無料（$0）のプランの「Subscribe」を押す。無料枠を超えたときに課金されずに止まるプランかを、画面で確認してください。</li>
+        <li>AeroDataBox の画面に出る「X-RapidAPI-Key」をコピーし、「設定」→「API キー：空港の時刻表」に貼り付けて「保存してテスト」を押す。</li>
+      </ol>
+      <p>空港を開くたびに2回分を使うため、同じ空港は15分間、結果を使い回します。無料枠の回数は変わることがあるので、プランの画面で確認してください。</p>
+
+      <h2 id="ja-data">8. データについて</h2>
+      <ul>
+        <li>新幹線の路線・駅、空港：国土数値情報（鉄道データ・空港データ）国土交通省 を加工して作成。</li>
+        <li>地図：国土地理院（地図の地名は日本語です）。</li>
+        <li>飛行機：航空機が発信する ADS-B を有志が受信して公開しているデータ（<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>、ODbL）。30秒ごとに更新し、その間は速度と向きから位置を進めています。受信局のない空域の機体は表示されません。国内線・国際線は便名の経路（<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>）から判定し、わからない場合は航空会社や登録国から推定しています。</li>
+        <li>旅客船：船が発信する AIS を有志が受信して公開しているデータ（<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>）。受信局のない海域の船や、AIS を発信していない船は表示されません。</li>
+        <li>空港の時刻表：<a href="https://aerodatabox.com" target="_blank" rel="noopener">AeroDataBox</a>（API キーを登録した場合）。</li>
+        <li>表示範囲：陸地を含む日本の排他的経済水域。<a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">海上保安庁の領海等概念図</a>に合わせ、外国との境界が未画定の海域は中間線までとしています（Marine Regions、CC BY 4.0 を加工して作成）。範囲の外は白く（ダークでは暗く）表示します。</li>
+      </ul>
+
+      <h2 id="ja-official">9. 公式の運行情報</h2>
+      <ul>
+        <li><a href="https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html" target="_blank" rel="noopener">JR東海（東海道新幹線）</a></li>
+        <li><a href="https://trafficinfo.westjr.co.jp/sanyo.html" target="_blank" rel="noopener">JR西日本（山陽・北陸新幹線）</a></li>
+        <li><a href="https://traininfo.jreast.co.jp/train_info/shinkansen.aspx" target="_blank" rel="noopener">JR東日本（東北・上越・北陸・山形・秋田新幹線）</a></li>
+        <li><a href="https://www3.jrhokkaido.co.jp/webunkou/" target="_blank" rel="noopener">JR北海道（北海道新幹線）</a></li>
+        <li><a href="https://www.jrkyushu.co.jp/trains/info/" target="_blank" rel="noopener">JR九州（九州・西九州新幹線）</a></li>
+      </ul>
+
+      <h2 id="ja-author">10. 作者について・お問い合わせ</h2>
+      <p><strong>Harry</strong>（ハリー）：名古屋を拠点に世界を飛び回る会社員。何でも自分で探し、作り、直すまで納得しないタイプで、ブログ「<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>」でデジタルガジェットや DIY のデジタル生活を紹介しています。</p>
+      <p><strong>DoItMyself</strong>（<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>）：Harry が自分で作ったアプリを公開している場所です。</p>
+      <p>要望・不具合は、アプリの「設定」から送るか、<a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub の Issues</a> へお寄せください。</p>
+    </section>
+
+    <section lang="en" id="en">
+      <h1>Help (Norimono Radar)</h1>
+      <ol class="toc">
+        <li><a href="#en-about">About</a></li>
+        <li><a href="#en-screen">The screen</a></li>
+        <li><a href="#en-menu">Bottom menu</a></li>
+        <li><a href="#en-info">Trains, stations, airports, flights, ships</a></li>
+        <li><a href="#en-login">Sign-in and My list</a></li>
+        <li><a href="#en-settings">Settings</a></li>
+        <li><a href="#en-keys">Registering API keys</a></li>
+        <li><a href="#en-data">About the data</a></li>
+        <li><a href="#en-official">Official service info</a></li>
+        <li><a href="#en-author">Author and contact</a></li>
+      </ol>
+
+      <h2 id="en-about">1. About</h2>
+      <p>A map showing where all of Japan's Shinkansen trains, flights over Japan and ferries in nearby waters are right now. Works on phones and PCs.</p>
+      <p>Train positions are calculated from an <strong>estimated timetable</strong> built from typical service patterns. Actual schedules, delays and cancellations are not reflected, and train numbers differ from the real ones. Please check each operator's official information for actual service status.</p>
+
+      <h2 id="en-screen">2. The screen</h2>
+      <ul>
+        <li><strong>Top bar</strong>: app name, the time with the number of trains, ✈ flights and ⛴ ferries, and the Google sign-in button at the top right.</li>
+        <li>Tap the <strong>time</strong> to change the displayed time or fast-forward ×10 / ×60.</li>
+        <li><span class="icon">▲</span><strong>Trains</strong>: thin triangles in the line's color, pointing in the direction of travel. Trains stopped at a station are lined up like platforms (estimated).</li>
+        <li><span class="icon">✈</span><strong>Flights</strong>: yellow for domestic, pink for international, nose in the direction of travel.</li>
+        <li><span class="icon">⛴</span><strong>Ferries</strong>: dark light-blue ships seen from above, bow in the direction of travel.</li>
+        <li><strong>Stations and airports</strong>: names appear when you zoom in. The code under an airport name is its airport code (e.g. HND).</li>
+        <li>Tracked and favorite items have a thicker white outline and keep their names when zoomed out.</li>
+        <li>The covered area is inside the dashed line (Japan's EEZ including land).</li>
+      </ul>
+
+      <h2 id="en-menu">3. Bottom menu</h2>
+      <ul>
+        <li><strong>Filter</strong>: show or hide domestic and international flights, ferries and each line.</li>
+        <li><strong>Search</strong>: find stations, airports (codes too), running trains (e.g. Nozomi 1), flights (e.g. NH20) or ships, then tap to go there.</li>
+        <li><strong>Location</strong>: move to where you are (location permission needed).</li>
+        <li><strong>My list</strong>: your tracked trains, flights and ferries and favorite stations (sign-in needed).</li>
+        <li><strong>Settings</strong>: account, language, appearance (light / dark), API keys, current settings and this help.</li>
+      </ul>
+
+      <h2 id="en-info">4. Trains, stations, airports, flights, ships</h2>
+      <ul>
+        <li>Tap a <strong>train</strong>: destination, next stop, times at each stop and estimated speed; the map follows the train. Tap a station name to open its timetable.</li>
+        <li>Tap a <strong>station</strong>: its timetable (outbound / inbound) with the current hour highlighted and a red line at the current time.</li>
+        <li>Tap an <strong>airport</strong>: flights in domestic / international tabs. With an AeroDataBox API key, you also see the timetable: departures for the next 12 hours and arrivals from 2 hours ago to 2 hours ahead. Without a key, only flights in the air are shown.</li>
+        <li>Tap a <strong>flight or ship</strong>: flight number, route, altitude, speed and aircraft type; ship name, speed and destination.</li>
+      </ul>
+
+      <h2 id="en-login">5. Sign-in and My list</h2>
+      <p>You can view everything without signing in (as a guest). Signing in lets you:</p>
+      <ul>
+        <li><strong>Track</strong> trains, flights and ferries and save <strong>favorite stations</strong> (press ☆ on their information).</li>
+        <li>Save your language, appearance and layer settings and use them on your other devices.</li>
+        <li>Register API keys (section 7).</li>
+      </ul>
+      <h3>How to sign in</h3>
+      <ol>
+        <li>Press "Log in" at the top right and choose your Google account.</li>
+        <li>On the consent screen, allow this app to use its private app-data area of Google Drive (check the box and press "Continue"). It does not read any other files in your Drive.</li>
+        <li>Once signed in, the button shows your profile picture and "Google connected" with a green glowing border. Press it to switch accounts or sign out.</li>
+      </ol>
+      <p>How data is stored is described in the <a href="privacy.html#en">privacy policy</a>.</p>
+
+      <h2 id="en-settings">6. Settings</h2>
+      <ul>
+        <li><strong>Language</strong>: Japanese or English. It first follows your browser's language.</li>
+        <li><strong>Appearance</strong>: Auto (follow device), Light or Dark. Dark also darkens the map.</li>
+        <li><strong>Current settings</strong>: check your language, appearance, what is shown, API keys and where settings are saved.</li>
+        <li>You can also send requests or bug reports from Settings (opens a GitHub issue).</li>
+      </ul>
+
+      <h2 id="en-keys">7. Registering API keys</h2>
+      <p>Guests can see flights and ferries for <strong>the first 5 minutes</strong> after opening the page (they use the author's relay server and API key). To keep viewing them, register your own free API key. Registering keys requires Google sign-in. Keys are saved in your Google Drive and never sent to the author.</p>
+      <h3>aisstream.io (keep viewing flights and ferries)</h3>
+      <ol>
+        <li>Open <a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> and sign in with your GitHub account (free).</li>
+        <li>Under "API Keys", press "Create New API Key".</li>
+        <li>Copy the key, paste it into Settings → "API key: flights and ferries" and press "Save and test".</li>
+      </ol>
+      <p>With your key, ferries are received directly from aisstream.io in your browser. Ship types arrive only about every 6 minutes, so few ships are shown right after you register.</p>
+      <h3>AeroDataBox (airport timetables)</h3>
+      <ol>
+        <li>Sign up for free at <a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI</a>.</li>
+        <li>On the <a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox pricing page</a>, press "Subscribe" on the free ($0) plan. Check that the plan stops, rather than charging you, when the free quota runs out.</li>
+        <li>Copy the "X-RapidAPI-Key" shown on the AeroDataBox page, paste it into Settings → "API key: airport timetables" and press "Save and test".</li>
+      </ol>
+      <p>Opening an airport uses 2 calls, so the same airport reuses its result for 15 minutes. Free quotas can change, so check them on the plan screen.</p>
+
+      <h2 id="en-data">8. About the data</h2>
+      <ul>
+        <li>Shinkansen lines, stations and airports: National Land Numerical Information (MLIT), processed.</li>
+        <li>Base map: GSI Japan (place names on the map are in Japanese).</li>
+        <li>Flights: ADS-B data received and shared by volunteers (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL), updated every 30 seconds and moved forward by speed and heading in between. Aircraft in areas without receivers are not shown. Domestic / international is judged from the flight's route (<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>), or from the airline and country of registration when unknown.</li>
+        <li>Ferries: AIS data received and shared by volunteers (<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>). Ships in areas without receivers, or without AIS, are not shown.</li>
+        <li>Airport timetables: <a href="https://aerodatabox.com" target="_blank" rel="noopener">AeroDataBox</a> (when you register an API key).</li>
+        <li>Covered area: Japan's EEZ including land, following the <a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">Japan Coast Guard's map</a>, with median lines where boundaries are not yet agreed (Marine Regions, CC BY 4.0, processed). Outside the area is shown white (dark in dark mode).</li>
+      </ul>
+
+      <h2 id="en-official">9. Official service info</h2>
+      <ul>
+        <li><a href="https://traininfo.jr-central.co.jp/shinkansen/sp/ja/ti08.html" target="_blank" rel="noopener">JR Central (Tokaido Shinkansen)</a></li>
+        <li><a href="https://trafficinfo.westjr.co.jp/sanyo.html" target="_blank" rel="noopener">JR West (Sanyo / Hokuriku Shinkansen)</a></li>
+        <li><a href="https://traininfo.jreast.co.jp/train_info/shinkansen.aspx" target="_blank" rel="noopener">JR East (Tohoku / Joetsu / Hokuriku / Yamagata / Akita Shinkansen)</a></li>
+        <li><a href="https://www3.jrhokkaido.co.jp/webunkou/" target="_blank" rel="noopener">JR Hokkaido (Hokkaido Shinkansen)</a></li>
+        <li><a href="https://www.jrkyushu.co.jp/trains/info/" target="_blank" rel="noopener">JR Kyushu (Kyushu / Nishi-Kyushu Shinkansen)</a></li>
+      </ul>
+
+      <h2 id="en-author">10. Author and contact</h2>
+      <p><strong>Harry</strong>: an office worker based in Nagoya who travels the world and is never satisfied until things are found, built or fixed by hand. Harry writes about digital gadgets and a DIY digital life on the blog "<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>" (in Japanese).</p>
+      <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes handmade apps.</p>
+      <p>Send requests or bug reports from the app's Settings, or via <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+    </section>
+
+    <script>
+      // 右上の ×: アプリの中で重ねて開いたときはアプリに閉じてもらう。直接開いたときは前の画面かアプリへ戻る
+      function closeDoc() {
+        if (window.parent !== window) window.parent.postMessage('close-doc', location.origin);
+        else if (document.referrer.indexOf(location.origin) === 0 && history.length > 1) history.back();
+        else location.href = './';
+      }
+      // アプリの中で開いたときは、アプリの × を使う（重ならないよう、ページの × は隠す）
+      if (window.parent !== window) document.querySelector('.doc-close').hidden = true;
+    </script>
+  </body>
+</html>

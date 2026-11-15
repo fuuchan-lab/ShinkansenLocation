@@ -6,14 +6,16 @@
     <title>プライバシーポリシー / Privacy Policy — のりものレーダー</title>
     <style>
       body { font-family: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif; max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; line-height: 1.7; color: #1f2937; background: #f4f6fb; }
-      h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; margin-top: 2em; }
+      h1 { font-size: 1.5rem; margin-right: 48px; } h2 { font-size: 1.15rem; margin-top: 2em; }
       section { background: #fff; border-radius: 12px; padding: 8px 20px 16px; margin-bottom: 24px; }
-      nav { margin-bottom: 16px; font-size: 0.95rem; }
-      @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } }
+      nav { margin: 0 48px 16px 0; font-size: 0.95rem; }
+      .doc-close { position: fixed; top: 10px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #d5dae1; background: #fff; font-size: 20px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); }
+      @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } .doc-close { background: #1e293b; color: #e5e7eb; border-color: #334155; } }
     </style>
   </head>
   <body>
-    <nav><a href="./">← のりものレーダー / Norimono Radar</a> ・ <a href="#ja">日本語</a> ・ <a href="#en">English</a></nav>
+    <button type="button" class="doc-close" aria-label="閉じる / Close" onclick="closeDoc()">×</button>
+    <nav><a href="#ja">日本語</a> ・ <a href="#en">English</a> ・ <a href="help.html">ヘルプ / Help</a></nav>
 
     <section lang="ja" id="ja">
       <h1>プライバシーポリシー（のりものレーダー）</h1>
@@ -28,13 +30,13 @@
         <li><strong>Google アカウントの名前・プロフィール画像</strong>（ログインした場合のみ。ログイン中であることを画面に表示するため）</li>
         <li><strong>登録した内容</strong>：トラッキングする列車（列車名・号数）、飛行機（便名・コールサイン・機体の識別番号）、船（MMSI・船名）、お気に入りの駅（駅名）</li>
         <li><strong>端末の設定</strong>：表示する言語、表示モード（ライト・ダーク）、飛行機・船・路線の表示の切り替え（ログイン中は、これらも登録内容と一緒に Google ドライブに保存します）</li>
-        <li><strong>API キー</strong>（利用者が自分で登録した場合のみ）：空港の発着予定を表示するための、利用者自身の RapidAPI（AeroDataBox）のキー</li>
+        <li><strong>API キー</strong>（ログインして、利用者が自分で登録した場合のみ）：飛行機・旅客船を続けて表示するための aisstream.io のキーと、空港の発着予定を表示するための RapidAPI（AeroDataBox）のキー（どちらも利用者自身のもの）</li>
         <li><strong>現在地</strong>（位置情報を許可した場合のみ）：地図に自分の位置を表示するためだけに、端末の中で使います。どこにも送信・保存しません。</li>
       </ul>
 
       <h2>保存先</h2>
       <ul>
-        <li><strong>利用している端末のブラウザ内</strong>（localStorage）：端末の設定、ログイン状態、登録内容の写し（すぐに表示するため）。ゲストが登録した API キーは、ここにだけ保存します（ブラウザのデータを消すと消えます）。ログイン中の API キーは、写しとしてここにも一時的に置かれ、ログアウトで消えます。</li>
+        <li><strong>利用している端末のブラウザ内</strong>（localStorage）：端末の設定、ログイン状態、登録内容の写し（すぐに表示するため）。ログイン中の API キーは、写しとしてここにも一時的に置かれ、ログアウトで消えます。旅客船だと分かった船の船名・船種（公開データ）も、次回すぐ表示するためにここに置きます。</li>
         <li><strong>ログインした Google アカウントの Google ドライブのアプリ専用領域</strong>（appDataFolder）：登録内容（ファイル名 user.json）。この領域は、利用者のドライブのファイル一覧には表示されず、本アプリからしか読み書きできません。他の端末でログインしても同じ登録内容を使えます。</li>
       </ul>
       <p>本アプリの開発者が、上記の個人の情報や登録内容を受け取ることはありません。</p>
@@ -48,6 +50,7 @@
         <li>国土地理院（地図の画像）、OpenFreeMap（地図の文字のフォント）</li>
         <li>飛行機・旅客船の位置を中継するサーバー（開発者が Cloudflare Workers で運用）。公開されている adsb.lol・adsbdb・aisstream.io のデータをまとめて返すだけで、利用者を識別する情報は記録しません。</li>
         <li>Google（ログインと、Google ドライブへの保存。ログインした場合のみ）</li>
+        <li>aisstream.io：利用者が自分の API キーを登録した場合のみ。旅客船の位置を受信するため、<strong>利用者のブラウザから直接</strong> stream.aisstream.io へつなぎ、利用者の API キーと受信する範囲（日本周辺）を送ります。開発者のサーバーは通らず、開発者がキーを受け取ることはありません。</li>
         <li>RapidAPI（AeroDataBox）：利用者が自分の API キーを登録した場合のみ。空港の発着予定を取得するため、<strong>利用者のブラウザから直接</strong> rapidapi.com へ、空港コード・時間帯と利用者の API キーを送ります。開発者のサーバーは通らず、開発者がキーを受け取ることはありません。キーの利用状況・料金は、利用者と RapidAPI の契約に従います。</li>
       </ul>
 
@@ -62,7 +65,7 @@
       </ul>
 
       <h2>今後の変更</h2>
-      <p>API キーを登録できる対象を増やす場合も、保存先は上記の Google ドライブのアプリ専用領域（ゲストはこの端末）のままで、追加する内容はこのページに追記します。API キーを削除すると、端末と Google ドライブから消えます。</p>
+      <p>API キーを登録できる対象を増やす場合も、保存先は上記の Google ドライブのアプリ専用領域のままで、追加する内容はこのページに追記します。API キーを削除すると、端末と Google ドライブから消えます。</p>
 
       <h2>作者について</h2>
       <p><strong>Harry</strong>（ハリー）：名古屋を拠点に世界を飛び回る会社員。何でも自分で探し、作り、直すまで納得しないタイプで、ブログ「<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>」（hvd.jp）で、デジタルガジェットや DIY のデジタル生活を紹介しています。</p>
@@ -85,13 +88,13 @@
         <li><strong>Your Google account name and profile picture</strong> (only when signed in, to show who is signed in)</li>
         <li><strong>Items you save</strong>: trains you track (train name and number), flights (flight number, callsign, aircraft identifier), ships (MMSI and name) and favorite stations (station name)</li>
         <li><strong>Device settings</strong>: display language, appearance (light / dark) and which flights, ships and lines are shown (while signed in, these are also saved in Google Drive together with your saved items)</li>
-        <li><strong>API key</strong> (only if you register one): your own RapidAPI (AeroDataBox) key, used to show airport timetables</li>
+        <li><strong>API keys</strong> (only if you sign in and register them yourself): your own aisstream.io key, used to keep showing flights and ferries, and your own RapidAPI (AeroDataBox) key, used to show airport timetables</li>
         <li><strong>Your location</strong> (only if you allow it): used only on your device to show where you are on the map. It is never sent or stored anywhere.</li>
       </ul>
 
       <h2>Where data is stored</h2>
       <ul>
-        <li><strong>In the browser on your device</strong> (localStorage): device settings, sign-in state and a copy of your saved items (to show them quickly). An API key registered as a guest is stored only here (it is lost when you clear browser data). While signed in, a copy of the key is also kept here temporarily and removed when you sign out.</li>
+        <li><strong>In the browser on your device</strong> (localStorage): device settings, sign-in state and a copy of your saved items (to show them quickly). While signed in, a copy of your API keys is also kept here temporarily and removed when you sign out. Names and types of ships identified as passenger ships (public data) are also kept here to show them quickly next time.</li>
         <li><strong>In the private app-data area of your Google Drive</strong> (appDataFolder): your saved items (file name user.json). This area does not appear in your Drive file list and only this app can read or write it. Signing in on another device gives you the same list.</li>
       </ul>
       <p>The developer never receives your personal information or saved items.</p>
@@ -105,6 +108,7 @@
         <li>GSI Japan (map images) and OpenFreeMap (map label fonts)</li>
         <li>A relay server for flight and ferry positions, run by the developer on Cloudflare Workers. It only combines public data from adsb.lol, adsbdb and aisstream.io and does not record anything that identifies users.</li>
         <li>Google (sign-in and saving to Google Drive, only when signed in)</li>
+        <li>aisstream.io, only if you register your own API key: to receive ferry positions, <strong>your browser connects directly</strong> to stream.aisstream.io and sends your API key and the area to receive (around Japan). This never goes through the developer's server, and the developer never receives the key.</li>
         <li>RapidAPI (AeroDataBox), only if you register your own API key: to get airport timetables, <strong>your browser connects directly</strong> to rapidapi.com and sends the airport code, the time range and your API key. This never goes through the developer's server, and the developer never receives the key. Usage and charges follow your own agreement with RapidAPI.</li>
       </ul>
 
@@ -119,14 +123,24 @@
       </ul>
 
       <h2>Future changes</h2>
-      <p>If we let you register API keys for more services, they will also be stored in the private app-data area of your Google Drive (or on this device for guests), and this page will be updated. Deleting an API key removes it from your device and Google Drive.</p>
+      <p>If we let you register API keys for more services, they will also be stored in the private app-data area of your Google Drive, and this page will be updated. Deleting an API key removes it from your device and Google Drive.</p>
 
       <h2>About the author</h2>
       <p><strong>Harry</strong>: an office worker based in Nagoya who travels the world and is never satisfied until things are found, built or fixed by hand. Harry writes about digital gadgets and a DIY digital life on the blog "<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>" (hvd.jp, in Japanese).</p>
-      <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes the apps he made himself, including LeadLog (trade-show lead notes), CapLog (everyday discoveries on a map), CleanLog and a headache log.</p>
+      <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes handmade apps, including LeadLog (trade-show lead notes), CapLog (everyday discoveries on a map), CleanLog and a headache log.</p>
 
       <h2>Contact</h2>
       <p>For questions about the app, please use <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
     </section>
+    <script>
+      // 右上の ×: アプリの中で重ねて開いたときはアプリに閉じてもらう。直接開いたときは前の画面かアプリへ戻る
+      function closeDoc() {
+        if (window.parent !== window) window.parent.postMessage('close-doc', location.origin);
+        else if (document.referrer.indexOf(location.origin) === 0 && history.length > 1) history.back();
+        else location.href = './';
+      }
+      // アプリの中で開いたときは、アプリの × を使う（重ならないよう、ページの × は隠す）
+      if (window.parent !== window) document.querySelector('.doc-close').hidden = true;
+    </script>
   </body>
 </html>

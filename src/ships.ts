@@ -28,7 +28,11 @@ const MOORED_KNOTS = 1;
 export async function fetchShips(prev: Ship[]): Promise<Ship[]> {
   const res = await fetch(`${LIVE_API}/ships`);
   if (!res.ok) throw new Error(`ships ${res.status}`);
-  const data = (await res.json()) as { now: number; ships: Row[] };
+  return parseShips((await res.json()) as { now: number; ships: Row[] }, prev);
+}
+
+/** 中継サーバー（/ships）か、利用者のキーで直接受信したもの（src/ais.ts）を、表示用にする */
+export function parseShips(data: { now: number; ships: Row[] }, prev: Ship[]): Ship[] {
   const before = new Map(prev.map((s) => [s.mmsi, s]));
   return data.ships.map(([mmsi, name, lat, lon, sog, cog, hdg, type, dest, age, length]) => {
     const moving = (sog ?? 0) >= MOORED_KNOTS;

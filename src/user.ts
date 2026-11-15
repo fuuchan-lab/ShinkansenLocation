@@ -21,7 +21,7 @@ export interface Settings {
   ships?: boolean;
 }
 /** 個人の API キー（利用者が自分で契約・登録する）。ログイン中は Google ドライブのアプリ専用領域に、ゲストはこの端末だけに保存する */
-export type ApiKeyName = 'aerodatabox';
+export type ApiKeyName = 'aisstream' | 'aerodatabox';
 export type ApiKeys = Partial<Record<ApiKeyName, string>>;
 export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings; keys: ApiKeys }
 export interface Account { name: string; picture: string }
@@ -256,27 +256,22 @@ export function saveSettings(patch: Settings): boolean {
   return true;
 }
 
-const localKey = (name: ApiKeyName) => `key.${name}`;
 
-/** 登録した API キー（ログイン中はドライブの内容、ゲストはこの端末の内容）。なければ空 */
+/** 登録した API キー（ログイン中だけ。Google ドライブに保存したもの）。なければ空 */
 export function getApiKey(name: ApiKeyName): string {
-  return (user.account ? user.data.keys[name] : load<string>(localKey(name))) ?? '';
+  return (user.account && user.data.keys[name]) || '';
 }
 
-/** API キーを登録・削除する（空なら削除）。タップの処理から呼ぶ */
+/** API キーを登録・削除する（空なら削除）。ログイン中だけ。タップの処理から呼ぶ */
 export function setApiKey(name: ApiKeyName, value: string) {
+  if (!user.account) return;
   const v = value.trim();
-  if (user.account) {
-    const keys = { ...user.data.keys };
-    if (v) keys[name] = v;
-    else delete keys[name];
-    setData({ ...user.data, keys });
-    emit();
-    persist();
-  } else {
-    store(localKey(name), v || null);
-    emit();
-  }
+  const keys = { ...user.data.keys };
+  if (v) keys[name] = v;
+  else delete keys[name];
+  setData({ ...user.data, keys });
+  emit();
+  persist();
 }
 
 function persist() {

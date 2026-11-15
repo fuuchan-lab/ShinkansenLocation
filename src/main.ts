@@ -7,13 +7,14 @@ import { buildRoutes, distKm, loadData, type Airport, type GeoJSONData, type Lin
 import { aircraftAt, aircraftLabel, fetchAircraft, LIVE_API, type Aircraft } from './aircraft';
 import { inArea, setArea, type AreaFeature } from './area';
 import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
-import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
+import { fetchShips, parseShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
 import { airportCode } from './names-en';
 import { fetchSchedule, ScheduleError, SCHEDULE_KEY, testKey, type Scheduled, type ScheduleErrorKind } from './schedule';
 import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
 import { effectiveTheme, getTheme, onThemeChange, setTheme, type Theme } from './theme';
-import { getApiKey, GOOGLE_CLIENT_ID, isFav, onUserChange, setApiKey, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
+import { aisShips, rememberShips, startAis, stopAis, testAisKey } from './ais';
+import { getApiKey, GOOGLE_CLIENT_ID, isFav, onUserChange, setApiKey, type ApiKeyName, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -237,35 +238,49 @@ async function init() {
   if ('geolocation' in navigator) geolocate.trigger();
   setupUser();
   if (LIVE_API) {
-    // ゲストは 5 分たったら止める。ログインしたら再開する
+    // 5 分たったら止める。自分の API キー（aisstream.io）を登録したら再開する
     setTimeout(() => checkGuestLimit(), GUEST_LIVE_MS + 1000);
-    onUserChange(() => {
-      if (user.account && livePaused) {
-        livePaused = false;
-        $('live-notice').hidden = true;
-        pollers.forEach((p) => p());
-      }
-    });
+    onUserChange(syncLiveSource);
+    syncLiveSource();
     startPolling(async () => {
       aircraft = (await fetchAircraft(aircraft)).filter((a) => inArea([a.lon, a.lat]));
       if (sheet?.kind === 'aircraft' || sheet?.kind === 'airport') renderSheet();
       renderMyPanel();
     });
     startPolling(async () => {
-      ships = (await fetchShips(ships)).filter((s) => inArea([s.lon, s.lat]));
+      // 自分のキーがあれば、ブラウザで直接受信したもの。なければ中継サーバー（最初の 5 分だけ）
+      const own = getApiKey('aisstream') ? aisShips() : null;
+      const next = own ? parseShips(own, ships) : await fetchShips(ships);
+      if (!own) rememberShips(next);
+      ships = next.filter((s) => inArea([s.lon, s.lat]));
       if (sheet?.kind === 'ship') renderSheet();
       renderMyPanel();
     });
   }
 }
 
-// 飛行機・旅客船は開発者の中継サーバー（aisstream.io のキー・Cloudflare の無料枠）を使うので、
-// ゲストはページを開いてから 5 分だけ表示する。ログインすれば続けて表示する
+// 飛行機・旅客船は開発者の中継サーバー（開発者の aisstream.io のキー・Cloudflare の無料枠）を使うので、
+// ページを開いてから 5 分だけ表示する。続けて見るには、自分の aisstream.io の API キーを登録する
+// （登録すると、旅客船は利用者のブラウザから aisstream.io へ直接つなぐ。飛行機はキー不要の公開データを中継する）
 const GUEST_LIVE_MS = 5 * 60 * 1000;
 const startedAt = Date.now();
 let livePaused = false;
 const pollers: (() => void)[] = [];
-const liveAllowed = () => !!user.account || Date.now() - startedAt < GUEST_LIVE_MS;
+const liveAllowed = () => !!getApiKey('aisstream') || Date.now() - startedAt < GUEST_LIVE_MS;
+
+/** 自分のキーがあれば直接受信を始め、なければ止める。止めていた表示を、キーの登録で再開する */
+function syncLiveSource() {
+  const key = getApiKey('aisstream');
+  if (key) startAis(key);
+  else stopAis();
+  if (livePaused && liveAllowed()) {
+    livePaused = false;
+    $('live-notice').hidden = true;
+    pollers.forEach((p) => p());
+  } else {
+    checkGuestLimit();
+  }
+}
 
 /** ゲストの時間が過ぎていれば、飛行機・船を消して案内を出す。止めたら true */
 function checkGuestLimit(): boolean {
@@ -288,10 +303,10 @@ function renderLiveNotice() {
   el.hidden = false;
   el.innerHTML = `<p>${GOOGLE_CLIENT_ID ? tx.liveExpired : tx.liveExpiredNoLogin}</p>
     <div class="live-notice-actions">
-      ${GOOGLE_CLIENT_ID ? `<button type="button" id="live-login" class="primary">${tx.signIn}</button>` : ''}
+      ${GOOGLE_CLIENT_ID ? `<button type="button" id="live-login" class="primary">${tx.liveSetKey}</button>` : ''}
       <button type="button" id="live-dismiss">${tx.close}</button>
     </div>`;
-  el.querySelector('#live-login')?.addEventListener('click', () => openMyPanel());
+  el.querySelector('#live-login')?.addEventListener('click', () => openSettings('aisstream'));
   el.querySelector('#live-dismiss')!.addEventListener('click', () => (el.hidden = true));
 }
 
@@ -652,8 +667,9 @@ function buildLineFilter() {
   }
   placeLineFilter();
 }
+// PC のシートの上端（上の帯の下）
 const placeLineFilter = () =>
-  document.documentElement.style.setProperty('--filter-bottom', `${Math.ceil($('line-filter').getBoundingClientRect().bottom) + 8}px`);
+  document.documentElement.style.setProperty('--filter-bottom', `${Math.ceil(document.querySelector('.topbar')!.getBoundingClientRect().bottom) + 8}px`);
 window.addEventListener('resize', placeLineFilter);
 
 // ---- 位置の更新 ----
@@ -1216,19 +1232,20 @@ function bindSheet() {
     b.addEventListener('click', () => openAircraft(b.dataset.aircraft!)),
   );
   body.querySelectorAll<HTMLButtonElement>('[data-open-keys]').forEach((b) =>
-    b.addEventListener('click', () => openSettings(true)),
+    b.addEventListener('click', () => openSettings(SCHEDULE_KEY)),
   );
 }
 
 // ---- マイリスト（ログインと、登録した列車・飛行機・船・駅） ----
-const USER_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v1.5h16V19c0-2.8-3.6-5-8-5z"/></svg>';
 let myNotice = '';
 
 function setupUser() {
-  // ログイン機能（GOOGLE_CLIENT_ID）がなくても、個人設定（API キー）のためにボタンは出す
+  // 右上は Google ログインのボタンだけ（ログイン機能を設定していなければ出さない）
   const btn = $('my-btn');
-  btn.hidden = false;
-  btn.addEventListener('click', () => ($('my-panel').hidden ? openMyPanel() : togglePanel('my-panel', false)));
+  btn.hidden = !GOOGLE_CLIENT_ID;
+  // ゲストはそのままログイン、ログイン中はアカウントのダイアログ（LeadLog と同じ）
+  if (GOOGLE_CLIENT_ID) preloadGoogle().catch(() => {});
+  btn.addEventListener('click', () => (user.account ? openAccount() : signIn()));
   $('my-close').addEventListener('click', () => togglePanel('my-panel', false));
   onUserChange(() => {
     renderMyButton();
@@ -1238,6 +1255,8 @@ function setupUser() {
     renderKeys();
     applySavedSettings();
     renderSettingsNote();
+    renderSettingsAccount();
+    renderSettingsInfo();
   });
   renderSettingsNote();
   // 他の端末で登録した内容を取り込む
@@ -1248,61 +1267,115 @@ function setupUser() {
   refreshUser();
 }
 
-// ---- 個人設定：API キー（空港の発着予定。利用者が自分のキーを登録する） ----
-let keysOpen = false;
-let keyMessage: { kind: 'ok' | 'err' | 'busy'; text: string } | null = null;
+// ---- 個人設定：API キー（利用者が自分のキーを登録する。ログインしてから） ----
+// aisstream.io: 飛行機・旅客船を 5 分より長く見るため（船はブラウザから直接受信）
+// AeroDataBox: 空港の時刻表
+interface KeyProvider {
+  name: ApiKeyName;
+  text: () => { title: string; intro: string; steps: string[]; note: string; placeholder: string; ok: string };
+  /** 使えなければ例外（ScheduleError なら理由別の文言） */
+  test: (key: string) => Promise<void>;
+}
+const KEY_PROVIDERS: KeyProvider[] = [
+  {
+    name: 'aisstream',
+    text: () => {
+      const tx = t();
+      return { title: tx.aisTitle, intro: tx.aisIntro, steps: tx.aisSteps, note: tx.aisNote, placeholder: tx.aisPlaceholder, ok: tx.aisOk };
+    },
+    test: async (key) => {
+      if (!(await testAisKey(key))) throw new Error(t().aisBad);
+    },
+  },
+  {
+    name: SCHEDULE_KEY,
+    text: () => {
+      const tx = t();
+      return { title: tx.keysTitle, intro: tx.keysIntro, steps: tx.keysSteps, note: tx.keysNote, placeholder: tx.keyPlaceholder, ok: tx.keyOk };
+    },
+    test: testKey,
+  },
+];
+const keysOpen: Partial<Record<ApiKeyName, boolean>> = {};
+const keyMessage: Partial<Record<ApiKeyName, { kind: 'ok' | 'err' | 'busy'; text: string }>> = {};
 
 /** 入力中の内容が消えないよう、自分の操作のときだけ描き直す（1 分ごとの描き直しとは別にしている） */
 function renderKeys() {
   const el = $('my-keys');
   const tx = t();
-  const key = getApiKey(SCHEDULE_KEY);
-  const where = user.account ? tx.keysWhereSignedIn : tx.keysWhereGuest;
-  const typed = (el.querySelector<HTMLInputElement>('#key-input')?.value) ?? '';
-  el.innerHTML = `
-    <details class="keys" ${keysOpen ? 'open' : ''}>
-      <summary>${tx.keysTitle}</summary>
-      <p class="small">${tx.keysIntro}</p>
-      <ol>${tx.keysSteps.map((s) => `<li>${s}</li>`).join('')}</ol>
-      <p class="small">${tx.keysNote}</p>
-      ${key ? `<p class="key-state ok">${tx.keyRegistered(escapeHtml(key.slice(-4)))}</p>` : ''}
-      <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="${tx.keyPlaceholder}" value="${escapeHtml(typed)}">
-      <div class="key-actions">
-        <button type="button" id="key-save" class="primary" ${keyMessage?.kind === 'busy' ? 'disabled' : ''}>${tx.keySaveTest}</button>
-        ${key ? `<button type="button" id="key-delete">${tx.keyDelete}</button>` : ''}
-      </div>
-      ${keyMessage ? `<p class="key-state ${keyMessage.kind === 'ok' ? 'ok' : keyMessage.kind === 'err' ? 'err' : ''}">${escapeHtml(keyMessage.text)}</p>` : ''}
-      <p class="small">${where} ${tx.keysPrivacy}</p>
-    </details>`;
-  el.querySelector('details')!.addEventListener('toggle', (e) => (keysOpen = (e.target as HTMLDetailsElement).open));
-  el.querySelector('#key-save')!.addEventListener('click', async () => {
-    const value = (el.querySelector<HTMLInputElement>('#key-input')!.value || key).trim();
-    if (!value) return;
-    keyMessage = { kind: 'busy', text: tx.keyTesting };
-    renderKeys();
-    try {
-      await testKey(value);
-      setApiKey(SCHEDULE_KEY, value);
-      schedules.clear();
-      keyMessage = { kind: 'ok', text: tx.keyOk };
-    } catch (err) {
-      const kind = err instanceof ScheduleError ? err.kind : 'other';
-      keyMessage = { kind: 'err', text: `${tx.keyErrors[kind]}${kind === 'other' && err instanceof Error ? ` (${err.message})` : ''}` };
-    }
-    (el.querySelector<HTMLInputElement>('#key-input')!).value = '';
-    renderKeys();
-    if (sheet?.kind === 'airport') {
-      loadSchedule(airportCode(sheet.name));
-      renderSheet();
-    }
-  });
-  el.querySelector('#key-delete')?.addEventListener('click', () => {
-    setApiKey(SCHEDULE_KEY, '');
-    schedules.clear();
-    keyMessage = null;
-    renderKeys();
-    renderSheet();
-  });
+  const typed = new Map(KEY_PROVIDERS.map((p) => [p.name, el.querySelector<HTMLInputElement>(`[data-key-input="${p.name}"]`)?.value ?? '']));
+  el.innerHTML = KEY_PROVIDERS.map((p) => {
+    const text = p.text();
+    const key = getApiKey(p.name);
+    const msg = keyMessage[p.name];
+    // API キーの登録はログインしてから（キーは本人の Google ドライブに保存する）
+    const form = user.account
+      ? `${key ? `<p class="key-state ok">${tx.keyRegistered(escapeHtml(key.slice(-4)))}</p>` : ''}
+        <input data-key-input="${p.name}" type="password" autocomplete="off" spellcheck="false" placeholder="${text.placeholder}" value="${escapeHtml(typed.get(p.name) ?? '')}">
+        <div class="key-actions">
+          <button type="button" class="primary" data-key-save="${p.name}" ${msg?.kind === 'busy' ? 'disabled' : ''}>${tx.keySaveTest}</button>
+          ${key ? `<button type="button" data-key-delete="${p.name}">${tx.keyDelete}</button>` : ''}
+        </div>
+        ${msg ? `<p class="key-state ${msg.kind === 'busy' ? '' : msg.kind}">${escapeHtml(msg.text)}</p>` : ''}
+        <p class="small">${tx.keysWhereSignedIn} ${tx.keysPrivacy}</p>`
+      : `<p class="key-state">${GOOGLE_CLIENT_ID ? tx.keysNeedLogin : tx.loginUnavailable}</p>
+        ${GOOGLE_CLIENT_ID ? `<button type="button" class="secondary" data-settings-login>${tx.signIn}</button>` : ''}`;
+    return `
+      <details class="keys" data-key-details="${p.name}" ${keysOpen[p.name] ? 'open' : ''}>
+        <summary>${text.title}${key ? ' ✓' : ''}</summary>
+        <p class="small">${text.intro}</p>
+        <ol>${text.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
+        <p class="small">${text.note}</p>
+        ${form}
+      </details>`;
+  }).join('');
+
+  el.querySelectorAll<HTMLDetailsElement>('[data-key-details]').forEach((d) =>
+    d.addEventListener('toggle', () => (keysOpen[d.dataset.keyDetails as ApiKeyName] = d.open)),
+  );
+  el.querySelectorAll('[data-settings-login]').forEach((b) => b.addEventListener('click', () => signIn()));
+  el.querySelectorAll<HTMLButtonElement>('[data-key-save]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const p = KEY_PROVIDERS.find((x) => x.name === b.dataset.keySave)!;
+      const input = el.querySelector<HTMLInputElement>(`[data-key-input="${p.name}"]`)!;
+      const value = (input.value || getApiKey(p.name)).trim();
+      if (!value) return;
+      keyMessage[p.name] = { kind: 'busy', text: tx.keyTesting };
+      renderKeys();
+      try {
+        await p.test(value);
+        setApiKey(p.name, value);
+        keyMessage[p.name] = { kind: 'ok', text: p.text().ok };
+      } catch (err) {
+        const text = err instanceof ScheduleError
+          ? `${tx.keyErrors[err.kind]}${err.kind === 'other' ? ` (${err.message})` : ''}`
+          : err instanceof Error ? err.message : String(err);
+        keyMessage[p.name] = { kind: 'err', text };
+      }
+      const after = el.querySelector<HTMLInputElement>(`[data-key-input="${p.name}"]`);
+      if (after) after.value = '';
+      renderKeys();
+      onKeysChanged();
+    }),
+  );
+  el.querySelectorAll<HTMLButtonElement>('[data-key-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const name = b.dataset.keyDelete as ApiKeyName;
+      setApiKey(name, '');
+      keyMessage[name] = undefined;
+      renderKeys();
+      onKeysChanged();
+    }),
+  );
+}
+
+/** キーを登録・削除したら、空港の時刻表を取り直し、飛行機・船の受信を切り替える */
+function onKeysChanged() {
+  schedules.clear();
+  if (sheet?.kind === 'airport') loadSchedule(airportCode(sheet.name));
+  renderSheet();
+  syncLiveSource();
+  renderSettingsInfo();
 }
 
 /** ログイン中に保存した設定（言語・表示・レイヤー）を、この端末にも反映する。違うものだけ変えるので何度呼んでもよい */
@@ -1338,6 +1411,52 @@ function renderSettingsNote() {
   $('settings-note').textContent = GOOGLE_CLIENT_ID ? (user.account ? t().settingsSynced : t().settingsGuest) : '';
 }
 
+/** 設定画面のアカウント欄: ログイン・ログアウトと、ログインのしかた */
+function renderSettingsAccount() {
+  const el = $('settings-account');
+  const tx = t();
+  const a = user.account;
+  if (!GOOGLE_CLIENT_ID) {
+    el.innerHTML = `<p class="small">${tx.loginUnavailable}</p>`;
+    return;
+  }
+  el.innerHTML = a
+    ? `<div class="account">
+        ${a.picture ? `<img src="${escapeHtml(a.picture)}" alt="" referrerpolicy="no-referrer">` : ''}
+        <div><b>${escapeHtml(a.name)}</b><span class="small">${user.busy ? tx.saving : tx.savedToDrive}</span></div>
+        <button type="button" data-settings-logout>${tx.signOut}</button>
+      </div>
+      ${user.error ? `<p class="notice">${escapeHtml(user.error)}</p>` : ''}`
+    : `<p class="small">${tx.guestNote}</p>
+      <details class="howto"><summary>${tx.loginHowToTitle}</summary><ol>${tx.loginHowTo.map((s) => `<li>${s}</li>`).join('')}</ol></details>
+      ${user.error ? `<p class="notice">${escapeHtml(user.error)}</p>` : ''}
+      <button type="button" class="primary" data-settings-login ${user.busy ? 'disabled' : ''}>${user.busy ? tx.signingIn : tx.signIn}</button>`;
+  el.querySelector('[data-settings-login]')?.addEventListener('click', () => signIn());
+  el.querySelector('[data-settings-logout]')?.addEventListener('click', () => signOut());
+}
+
+/** 設定画面の「いまの設定」 */
+function renderSettingsInfo() {
+  const tx = t();
+  const shownLines = lines.filter((l) => !hiddenLines.has(l.id)).map((l) => lineShort(l));
+  const layers = [
+    showPlanes.domestic ? tx.domestic : '', showPlanes.international ? tx.international : '', showShips ? tx.ships : '',
+    shownLines.length === lines.length ? tx.allLines : shownLines.join('・'),
+  ].filter(Boolean).join('、');
+  const keyState = (name: ApiKeyName) => {
+    const key = getApiKey(name);
+    return key ? tx.keyRegistered(escapeHtml(key.slice(-4))) : tx.notSet;
+  };
+  const rows: [string, string][] = [
+    [tx.infoLanguage, lang === 'ja' ? '日本語' : 'English'],
+    [tx.infoTheme, tx.themeNames[getTheme()]],
+    [tx.infoLayers, layers],
+    [tx.infoApiKey, `aisstream.io: ${keyState('aisstream')}<br>AeroDataBox: ${keyState(SCHEDULE_KEY)}`],
+    [tx.infoSavedTo, user.account ? tx.savedDrive(escapeHtml(user.account.name)) : tx.savedDevice],
+  ];
+  $('settings-info').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+}
+
 function renderThemeButtons() {
   document.querySelectorAll<HTMLButtonElement>('[data-set-theme]').forEach((b) => b.classList.toggle('on', b.dataset.setTheme === getTheme()));
 }
@@ -1350,12 +1469,70 @@ document.querySelectorAll<HTMLButtonElement>('[data-set-theme]').forEach((b) =>
 );
 renderThemeButtons();
 
+// Google 公式の「G」ロゴ（4色）。ログインボタンで使う（LeadLog と同じ）
+const GOOGLE_LOGO = `<svg class="google-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+</svg>`;
+
+/** 右上の Google ボタン（LeadLog と同じ）: 「ログイン」→「接続中…」→ プロフィール画像と「Google 接続中」。オンラインで接続中は縁を緑に光らせる */
 function renderMyButton() {
-  const btn = $('my-btn');
+  const btn = $('my-btn') as HTMLButtonElement;
   const a = user.account;
-  btn.innerHTML = a?.picture ? `<img src="${escapeHtml(a.picture)}" alt="" referrerpolicy="no-referrer">` : USER_ICON;
-  btn.classList.toggle('signed-in', !!a);
-  btn.setAttribute('aria-label', a ? `${t().myList} (${a.name})` : t().myListLogin);
+  const tx = t();
+  const connecting = user.busy && !a;
+  const label = connecting ? tx.googleConnecting : a ? tx.googleConnected : tx.googleLogin;
+  btn.disabled = connecting;
+  btn.classList.toggle('google-button-live', !!a && navigator.onLine);
+  btn.innerHTML = `
+    <span class="google-mark" aria-hidden="true" ${a?.picture ? `style="background-image:url('${escapeHtml(a.picture)}')"` : ''}>${a?.picture ? '' : GOOGLE_LOGO}</span>
+    <span class="google-text ${a ? 'connected' : ''}">${label}</span>`;
+  btn.setAttribute('aria-label', a ? `${tx.accountTitle} (${a.name})` : tx.signIn);
+}
+addEventListener('online', () => renderMyButton());
+addEventListener('offline', () => renderMyButton());
+
+/** アカウントのダイアログ（LeadLog と同じ: 保存先・アカウントの切り替え・ログアウト） */
+function openAccount() {
+  const a = user.account;
+  if (!a) return;
+  const tx = t();
+  const modal = $('account-modal');
+  const close = () => {
+    modal.hidden = true;
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+  $('account-body').innerHTML = `
+    <div class="row">
+      <h2 id="account-title">${tx.accountTitle}</h2>
+      <button type="button" class="link" data-close aria-label="${tx.close}">✕</button>
+    </div>
+    <p class="account-name">${a.picture ? `<img src="${escapeHtml(a.picture)}" alt="" referrerpolicy="no-referrer">` : ''}<b>${escapeHtml(a.name)}</b></p>
+    <p class="small">${tx.accountStorage}</p>
+    <p class="small">${user.busy ? tx.saving : tx.savedToDrive}</p>
+    ${user.error ? `<p class="notice">${escapeHtml(user.error)}</p>` : ''}
+    <button type="button" class="secondary" data-my>${tx.myList}</button>
+    <button type="button" class="secondary" data-switch>${tx.accountSwitch}</button>
+    <button type="button" class="danger-btn" data-signout>${tx.signOut}</button>`;
+  modal.hidden = false;
+  document.addEventListener('keydown', onKey);
+  modal.onclick = (e) => e.target === modal && close();
+  modal.querySelector('[data-close]')!.addEventListener('click', close);
+  modal.querySelector('[data-my]')!.addEventListener('click', () => {
+    close();
+    openMyPanel();
+  });
+  modal.querySelector('[data-switch]')!.addEventListener('click', () => {
+    close();
+    signIn(true);
+  });
+  modal.querySelector('[data-signout]')!.addEventListener('click', () => {
+    close();
+    signOut();
+  });
 }
 
 function openMyPanel(notice = '') {
@@ -1419,7 +1596,7 @@ function renderMyPanel() {
     ${account}
     ${message ? `<p class="notice">${escapeHtml(message)}</p>` : ''}
     ${a ? lists || `<p class="small">${tx.empty}</p>` : ''}
-    <p class="small privacy-link"><a href="${tx.privacyUrl}" target="_blank" rel="noopener">${tx.privacy}</a></p>`;
+    <p class="small privacy-link"><a href="privacy.html" data-doc>${tx.privacy}</a></p>`;
   $('my-close').textContent = tx.close;
 
   el.querySelector('#sign-in')?.addEventListener('click', () => {
@@ -1476,6 +1653,8 @@ function applyLanguage(l: Lang) {
   drawAirports();
   renderMyButton();
   renderKeys();
+  renderSettingsAccount();
+  renderSettingsInfo();
   if (!$('live-notice').hidden) renderLiveNotice();
   if (!$('search-panel').hidden) renderSearch();
   refresh();
@@ -1491,7 +1670,7 @@ renderRequestForm();
 document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) => b.classList.toggle('on', b.dataset.setLang === lang));
 
 // ---- パネル操作 ----
-const PANELS = ['time-panel', 'info-panel', 'my-panel', 'settings-panel', 'filter-panel', 'search-panel'];
+const PANELS = ['time-panel', 'my-panel', 'settings-panel', 'filter-panel', 'search-panel'];
 // 下のメニューのボタンと、開くパネル
 const NAV_PANEL: Record<string, string> = { filter: 'filter-panel', search: 'search-panel', my: 'my-panel', settings: 'settings-panel' };
 function togglePanel(id: string, force?: boolean) {
@@ -1503,33 +1682,47 @@ function togglePanel(id: string, force?: boolean) {
 }
 
 // ---- 設定（言語・表示モード・個人設定の API キー） ----
-function openSettings(showKeys = false) {
-  if (showKeys) keysOpen = true;
+/** showKey: そのキーの欄を開いて見せる */
+function openSettings(showKey?: ApiKeyName) {
+  if (showKey) keysOpen[showKey] = true;
   togglePanel('settings-panel', true);
+  if (GOOGLE_CLIENT_ID) preloadGoogle().catch(() => {}); // ログインのポップアップをタップ直後に開けるように
+  renderSettingsAccount();
   renderSettingsNote();
+  renderSettingsInfo();
   renderThemeButtons();
   renderKeys();
-  if (showKeys) $('my-keys').scrollIntoView({ block: 'nearest' });
+  if (showKey) $('my-keys').querySelector(`[data-key-details="${showKey}"]`)?.scrollIntoView({ block: 'nearest' });
 }
-$('settings-btn').addEventListener('click', () => ($('settings-panel').hidden ? openSettings() : togglePanel('settings-panel', false)));
 $('settings-close').addEventListener('click', () => togglePanel('settings-panel', false));
-$('open-info').addEventListener('click', () => togglePanel('info-panel', true));
+
+// ---- ヘルプ・プライバシーポリシー: アプリの上に重ねて開き、右上の × で元の画面に戻る ----
+function openDoc(href: string) {
+  const viewer = $('doc-viewer');
+  ($('doc-frame') as HTMLIFrameElement).src = href;
+  viewer.hidden = false;
+}
+function closeDoc() {
+  $('doc-viewer').hidden = true;
+  ($('doc-frame') as HTMLIFrameElement).src = 'about:blank';
+}
+$('doc-close').addEventListener('click', closeDoc);
+// ページの中の × からも閉じられる（help.html・privacy.html が送る）
+window.addEventListener('message', (e) => {
+  if (e.origin === location.origin && e.data === 'close-doc') closeDoc();
+});
+// data-doc の付いたリンクは、新しいタブではなく重ねて開く（言語に合わせて英語の部分へ）
+document.addEventListener('click', (e) => {
+  const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-doc]');
+  if (!a) return;
+  e.preventDefault();
+  openDoc(`${a.getAttribute('href')!.split('#')[0]}${lang === 'en' ? '#en' : ''}`);
+});
 $('filter-close').addEventListener('click', () => togglePanel('filter-panel', false));
 $('search-close').addEventListener('click', () => togglePanel('search-panel', false));
 
-// ---- スマホ: 下のメニュー。路線などのボタンは、スマホではフィルターのパネルに移す ----
-const mobile = matchMedia('(max-width: 767px)');
-function placeFilterBar() {
-  const nav = $('line-filter');
-  if (mobile.matches) {
-    if (nav.parentElement !== $('filter-slot')) $('filter-slot').appendChild(nav);
-  } else if (nav.parentElement === $('filter-slot')) {
-    document.body.insertBefore(nav, $('sheet'));
-    placeLineFilter();
-  }
-}
-mobile.addEventListener('change', placeFilterBar);
-placeFilterBar();
+// ---- 下のメニュー。路線・飛行機・船の表示のボタンは、フィルターのパネルに入れる ----
+$('filter-slot').appendChild($('line-filter'));
 
 document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach((b) =>
   b.addEventListener('click', () => {
@@ -1622,8 +1815,6 @@ $('clock').addEventListener('click', () => {
   ($('time-input') as HTMLInputElement).value = formatTime(nowMinutes());
   togglePanel('time-panel');
 });
-$('info-btn').addEventListener('click', () => togglePanel('info-panel'));
-$('info-close').addEventListener('click', () => togglePanel('info-panel', false));
 $('time-input').addEventListener('change', (e) => {
   const v = (e.target as HTMLInputElement).value;
   if (!v) return;

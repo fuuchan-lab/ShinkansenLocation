@@ -270,6 +270,41 @@ html:not([lang='en']) [data-lang='en'], html[lang='en'] [data-lang='ja'] { displ
 
 .maplibregl-ctrl-bottom-right { margin-bottom: var(--safe-bottom); }
 
+/* ---- Google ログインのボタン（LeadLog と同じ） ---- */
+.google-button {
+  flex: none; min-height: 40px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px 6px 8px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); font-size: 12px; white-space: nowrap;
+}
+.google-button:disabled { opacity: 0.7; }
+.google-mark {
+  flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: center / cover;
+}
+/* 公式ロゴは、暗い配色でも見えるように白い丸の上に置く */
+.google-logo { width: 100%; height: 100%; padding: 3px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+/* 接続中は「Google」と「接続中」を2行の小さい文字にする */
+.google-text.connected { white-space: pre-line; font-size: 10px; line-height: 1.2; }
+.google-button.google-button-live { border-color: #22c55e; animation: live-glow 1s ease-in-out infinite; }
+@keyframes live-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.15); }
+  50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .google-button.google-button-live { animation: none; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5); }
+}
+/* アカウントのダイアログ */
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.45); }
+.modal-card { width: min(100%, 380px); padding: 16px 18px; border-radius: var(--radius); background: var(--bg); box-shadow: var(--shadow); }
+.modal-card .row { display: flex; align-items: center; justify-content: space-between; }
+.modal-card h2 { margin: 0; font-size: 17px; }
+.modal-card p { font-size: 14px; line-height: 1.6; margin: 8px 0; }
+.modal-card .link { border: none; background: none; font-size: 18px; padding: 4px 8px; }
+.modal-card .account-name { display: flex; align-items: center; gap: 10px; }
+.modal-card .account-name img { width: 36px; height: 36px; border-radius: 50%; }
+.modal-card .secondary { margin: 6px 0; }
+.danger-btn { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px; border: 1px solid #d93025; background: none; color: #d93025; font-size: 14px; }
+
 /* ---- マイリスト・ログイン ---- */
 .my-btn { display: grid; place-items: center; padding: 0; overflow: hidden; color: var(--fg); font-family: inherit; font-style: normal; }
 .my-btn img { width: 100%; height: 100%; object-fit: cover; }
@@ -372,47 +407,69 @@ html:not([lang='en']) [data-lang='en'], html[lang='en'] [data-lang='ja'] { displ
 .live-notice-actions button:not(.primary) { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
 @media (min-width: 768px) { .live-notice { left: auto; right: 12px; bottom: 24px; width: 360px; } }
 
-/* ---- スマホ: 画面の一番下のメニュー ---- */
-.bottom-nav { display: none; }
+/* ---- 画面の一番下のメニュー（スマホは画面幅いっぱい、PC は下の中央に浮かせる） ---- */
+:root { --nav-h: calc(58px + var(--safe-bottom)); }
+.bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+  display: flex; height: var(--nav-h); padding-bottom: var(--safe-bottom);
+  background: var(--glass); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+}
+.bottom-nav button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border: none; background: none; color: var(--muted); font-size: 10px;
+}
+.bottom-nav svg { width: 23px; height: 23px; }
+.bottom-nav button.on { color: var(--link); }
+/* 現在地はメニューから。地図の現在地ボタンは隠す */
+.maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate) { display: none; }
+/* 路線・飛行機・船の表示のボタンは、フィルターのパネルの中だけに置く */
+#filter-slot .line-filter { display: flex; }
 @media (max-width: 767px) {
-  :root { --nav-h: calc(58px + var(--safe-bottom)); }
-  .desktop-only { display: none !important; }
-  .bottom-nav {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
-    display: flex; height: var(--nav-h); padding-bottom: var(--safe-bottom);
-    background: var(--glass); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
-  }
-  .bottom-nav button {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    border: none; background: none; color: var(--muted); font-size: 10px;
-  }
-  .bottom-nav svg { width: 23px; height: 23px; }
-  .bottom-nav button.on { color: var(--link); }
   /* シート・パネル・地図のボタンは、メニューの上に出す */
   .sheet { bottom: var(--nav-h); max-height: 50vh; padding-bottom: 16px; }
   .popover { bottom: calc(var(--nav-h) + 8px); max-height: calc(100vh - var(--nav-h) - 110px); }
   .popover.search { top: calc(8px + var(--safe-top)); bottom: auto; }
   .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { margin-bottom: var(--nav-h); }
-  /* 現在地はメニューから。地図の現在地ボタンは隠す */
-  .maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate) { display: none; }
-  .line-filter { display: none; }
-  #filter-slot .line-filter { display: flex; }
 }
+@media (min-width: 768px) {
+  :root { --nav-h: 0px; }
+  .bottom-nav {
+    left: 50%; right: auto; bottom: 16px; transform: translateX(-50%); width: 420px; height: 60px; padding: 0;
+    border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+  }
+  .bottom-nav button:hover { color: var(--fg); }
+  .maplibregl-ctrl-bottom-right { margin-bottom: 8px; }
+}
+
+/* ---- ヘルプ・プライバシーポリシーを重ねて表示（右上の × で元の画面に戻る） ---- */
+.doc-viewer { position: fixed; inset: 0; z-index: 60; background: var(--bg); }
+.doc-viewer iframe { width: 100%; height: 100%; border: none; display: block; }
+.doc-close {
+  position: fixed; top: calc(10px + var(--safe-top)); right: 12px; z-index: 61;
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); font-size: 20px; line-height: 1; box-shadow: var(--shadow);
+}
+.help-link { display: block; text-align: center; text-decoration: none; color: var(--fg); }
+.settings .account { display: flex; align-items: center; gap: 10px; }
+.settings .account img { width: 36px; height: 36px; border-radius: 50%; }
+.settings .account div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.settings .account > button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+.howto summary { cursor: pointer; font-size: 13px; padding: 4px 0; }
+.howto ol { margin: 4px 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.7; }
 
 /* ---- PC・タブレット ---- */
 @media (min-width: 768px) {
   .topbar { left: 12px; right: auto; width: 420px; top: 12px; }
   .brand h1 { font-size: 18px; }
-  .line-filter { top: 76px; left: 12px; right: 12px; flex-wrap: wrap; overflow: visible; padding: 0; }
-  /* --filter-bottom: 路線ボタンの下端（折り返しで変わるので JS で設定） */
+  /* --filter-bottom: 上の帯の下端（JS で設定）。下は中央のメニューと重ならないよう空ける */
   .sheet {
-    top: var(--filter-bottom, 124px); left: 12px; right: auto; bottom: auto;
-    width: 380px; max-height: calc(100vh - var(--filter-bottom, 124px) - 16px);
+    top: var(--filter-bottom, 84px); left: 12px; right: auto; bottom: auto;
+    width: 380px; max-height: calc(100vh - var(--filter-bottom, 84px) - 92px);
     border-radius: var(--radius); box-shadow: var(--shadow);
   }
   .sheet::before { display: none; }
   body.has-sheet .maplibregl-ctrl-bottom-right { display: block; }
-  .popover { left: auto; right: 12px; top: 12px; bottom: auto; width: 360px; }
+  .popover { left: auto; right: 12px; top: 72px; bottom: auto; width: 360px; max-height: calc(100vh - 168px); }
   .chip:hover { opacity: 0.85; }
   .chip.on:hover { opacity: 1; }
 }
