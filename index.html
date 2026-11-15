@@ -6,11 +6,16 @@
     <meta name="theme-color" content="#0b1f3a" />
     <meta name="description" content="日本の全新幹線（推定）と、日本の上空の飛行機・近海の旅客船の現在位置を地図に表示します。 / Live map of Japan's Shinkansen (estimated), flights and ferries." />
     <title>のりものレーダー</title>
-    <!-- 表示言語を先に決めて、違う言語の文字が一瞬見えないようにする（src/i18n.ts と同じ判定） -->
+    <!-- 表示言語と配色を先に決めて、違う言語・配色が一瞬見えないようにする（src/i18n.ts・src/theme.ts と同じ判定） -->
     <script>
       try {
         var l = localStorage.getItem('lang');
         document.documentElement.lang = l === 'ja' || l === 'en' ? l : navigator.language.toLowerCase().indexOf('ja') === 0 ? 'ja' : 'en';
+      } catch (e) {}
+      try {
+        var th = localStorage.getItem('theme');
+        var dark = th === 'dark' || (th !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
       } catch (e) {}
     </script>
     <!-- 地図ライブラリの読み込みを待たずに、データの取得と地図タイルなどへの接続を始める -->
@@ -68,6 +73,12 @@
         <button type="button" data-set-lang="ja">日本語</button>
         <button type="button" data-set-lang="en">English</button>
       </div>
+      <div class="theme-switch" role="group" aria-label="表示 / Appearance">
+        <button type="button" data-set-theme="auto"><span data-lang="ja">自動</span><span data-lang="en">Auto</span></button>
+        <button type="button" data-set-theme="light"><span data-lang="ja">ライト</span><span data-lang="en">Light</span></button>
+        <button type="button" data-set-theme="dark"><span data-lang="ja">ダーク</span><span data-lang="en">Dark</span></button>
+      </div>
+      <p class="small settings-note" id="settings-note"></p>
       <div data-lang="ja">
         <h2>このアプリについて</h2>
         <p>列車の位置は、運転パターンから作った<strong>推定時刻表</strong>をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。</p>
@@ -97,6 +108,12 @@
         <p class="small">Railway and airport data: National Land Numerical Information (MLIT), processed. Base map: GSI Japan (place names on the base map are in Japanese). EEZ: Marine Regions (CC BY 4.0), processed.</p>
         <p class="small">The covered area is Japan's exclusive economic zone including land (inside the dashed line), following the <a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">Japan Coast Guard's map</a>, with median lines where boundaries are not yet agreed. Outside the area is shown white, and only flights and ships inside it are shown.</p>
       </div>
+      <form id="request-form" class="request">
+        <h3 id="request-title"></h3>
+        <textarea id="request-text" rows="3" required></textarea>
+        <button id="request-send" type="submit" class="primary"></button>
+        <p id="request-note" class="small"></p>
+      </form>
       <div data-lang="ja" class="author">
         <h3>作者について</h3>
         <p>名古屋を拠点に世界を飛び回る会社員 <strong>Harry</strong>（ハリー）が個人で作っています。ブログは <a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>、ほかの手作りのアプリは <a href="https://doitmyself.net/" target="_blank" rel="noopener">DoItMyself</a> で公開しています。</p>

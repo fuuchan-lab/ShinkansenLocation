@@ -11,7 +11,8 @@ import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
 import { airportCode } from './names-en';
 import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
-import { GOOGLE_CLIENT_ID, isFav, onUserChange, preloadGoogle, refresh as refreshUser, signIn, signOut, toggleFav, user, type FavKind } from './user';
+import { effectiveTheme, getTheme, onThemeChange, setTheme, type Theme } from './theme';
+import { GOOGLE_CLIENT_ID, isFav, onUserChange, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -33,7 +34,13 @@ function officialFor(line: string, station: string): { label: string; url: strin
 }
 
 const SEA = '#bed2ff'; // 地理院タイル（淡色地図）の海の色
-const OUTSIDE = '#ffffff'; // 対象範囲（日本の排他的経済水域）の外
+// 配色ごとの色。ダークモードは地図の画像を反転して暗くし、範囲の外は海より暗い色にする
+const PALETTE = {
+  light: { sea: SEA, outside: '#ffffff', eez: '#3d6fb6', casing: '#ffffff', text: '#222222', textMuted: '#4a5568', halo: '#ffffff',
+    ship: SHIP_COLOR, plane: '#8a6a00', planeIntl: '#d6247e' },
+  dark: { sea: '#1a2332', outside: '#0b0f14', eez: '#7fa8e0', casing: '#0b0f14', text: '#e6edf3', textMuted: '#aab4c2', halo: '#0b0f14',
+    ship: '#5fc4ff', plane: '#ffd84d', planeIntl: '#ff8fc4' },
+};
 
 const style: StyleSpecification = {
   version: 8,
@@ -285,6 +292,32 @@ function buildStationIndex() {
 const FAV: maplibregl.ExpressionSpecification = ['==', ['get', 'fav'], true];
 const FAV_SUFFIX: maplibregl.ExpressionSpecification = ['case', FAV, '-fav', ''];
 
+/** ライト・ダークに合わせて、地図の色（背景・地図画像・範囲外・線・文字）を切り替える */
+function applyMapTheme() {
+  if (!map.getLayer('mask')) return;
+  const dark = effectiveTheme() === 'dark';
+  const c = PALETTE[dark ? 'dark' : 'light'];
+  map.setPaintProperty('sea', 'background-color', c.sea);
+  // 地図画像（淡色地図）は、ダークでは明暗を反転して色相を戻す（白地・黒文字 → 暗い地・明るい文字）
+  map.setPaintProperty('gsi', 'raster-brightness-min', dark ? 0.9 : 0);
+  map.setPaintProperty('gsi', 'raster-brightness-max', dark ? 0.1 : 1);
+  map.setPaintProperty('gsi', 'raster-hue-rotate', dark ? 180 : 0);
+  map.setPaintProperty('gsi', 'raster-saturation', dark ? -0.2 : 0);
+  map.setPaintProperty('mask', 'fill-color', c.outside);
+  map.setPaintProperty('eez-line', 'line-color', c.eez);
+  map.setPaintProperty('line-casing', 'line-color', c.casing);
+  const text = (id: string, color: maplibregl.ExpressionSpecification | string) => {
+    map.setPaintProperty(id, 'text-color', color);
+    map.setPaintProperty(id, 'text-halo-color', c.halo);
+  };
+  text('airport', c.textMuted);
+  text('station', c.text);
+  text('ships-label', c.ship);
+  text('aircraft-label', ['case', ['get', 'intl'], c.planeIntl, c.plane]);
+  // 列車の名前は路線の色。ダークでは暗い路線色が沈むので明るい文字にする
+  text('trains-label', dark ? c.text : ['get', 'color']);
+}
+
 const TAPPABLE = ['train-hit', 'station', 'airport', 'aircraft', 'ships'];
 const AIRPORT_LABEL: maplibregl.ExpressionSpecification = ['format',
   ['get', 'title'], {},
@@ -317,7 +350,7 @@ function addLayers() {
   map.addSource('ships', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
   // 対象範囲（日本の排他的経済水域）の外は白く隠し、境界を破線で示す
-  map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': OUTSIDE, 'fill-antialias': false } });
+  map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': PALETTE.light.outside, 'fill-antialias': false } });
   map.addLayer({
     id: 'eez-line', type: 'line', source: 'area',
     layout: { 'line-join': 'round' },
@@ -450,6 +483,9 @@ function addLayers() {
     paint: { 'circle-radius': 18, 'circle-color': '#000', 'circle-opacity': 0 },
   });
 
+  applyMapTheme();
+  onThemeChange(applyMapTheme);
+
   map.on('click', (e) => {
     // 列車・駅・空港・飛行機・船のうち、タップした位置に最も近いもの
     const r = 14;
@@ -523,6 +559,7 @@ function buildLineFilter() {
     ship.addEventListener('click', () => {
       showShips = !showShips;
       saveSetting('ships', showShips);
+      saveSettings({ ships: showShips });
       ship.classList.toggle('on', showShips);
       ship.setAttribute('aria-pressed', String(showShips));
       drawLive();
@@ -537,6 +574,7 @@ function buildLineFilter() {
       b.addEventListener('click', () => {
         showPlanes[key] = !showPlanes[key];
         saveSetting(`planes.${key}`, showPlanes[key]);
+        saveSettings({ [key]: showPlanes[key] });
         b.classList.toggle('on', showPlanes[key]);
         b.setAttribute('aria-pressed', String(showPlanes[key]));
         drawLive();
@@ -985,6 +1023,8 @@ function airportFlights(code: string) {
   return out;
 }
 
+const ARRIVAL_WINDOW_MIN = 120;
+
 function airportSheet(name: string, intl: boolean): string {
   const tx = t();
   const code = airportCode(name);
@@ -1012,8 +1052,8 @@ function airportSheet(name: string, intl: boolean): string {
   const list = flights.filter((f) => f.a.intl === intl);
   const section = (title: string, items: typeof flights) =>
     items.length ? `<section class="flights"><h3>${title}</h3><ul>${items.map(row).join('')}</ul></section>` : '';
-  // 到着予定は早い順、出発した便は新しい順
-  const arrivals = list.filter((f) => f.arr).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
+  // 到着予定は 2 時間以内を早い順、出発した便（飛行中）は新しい順。出発した便は飛行中のものだけなので 12 時間以内に収まる
+  const arrivals = list.filter((f) => f.arr && (f.minutes ?? 0) <= ARRIVAL_WINDOW_MIN).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
   const departures = list.filter((f) => !f.arr).sort((x, y) => (x.minutes ?? 1e9) - (y.minutes ?? 1e9));
   const body = !code ? `<p class="small">${tx.noCode}</p>`
     : section(tx.arriving, arrivals) + section(tx.departed, departures) || `<p class="small">${tx.noFlights}</p>`;
@@ -1090,7 +1130,10 @@ function setupUser() {
     drawStations();
     renderSheet();
     renderMyPanel();
+    applySavedSettings();
+    renderSettingsNote();
   });
+  renderSettingsNote();
   // 他の端末で登録した内容を取り込む
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshUser();
@@ -1098,6 +1141,51 @@ function setupUser() {
   renderMyButton();
   refreshUser();
 }
+
+/** ログイン中に保存した設定（言語・表示・レイヤー）を、この端末にも反映する。違うものだけ変えるので何度呼んでもよい */
+function applySavedSettings() {
+  const s = user.data.settings;
+  if (!user.account) return;
+  if (s.lang && s.lang !== lang) applyLanguage(s.lang);
+  if (s.theme && s.theme !== getTheme()) {
+    setTheme(s.theme);
+    renderThemeButtons();
+  }
+  let layers = false;
+  for (const key of ['domestic', 'international'] as const) {
+    const v = s[key];
+    if (v !== undefined && v !== showPlanes[key]) {
+      showPlanes[key] = v;
+      saveSetting(`planes.${key}`, v);
+      layers = true;
+    }
+  }
+  if (s.ships !== undefined && s.ships !== showShips) {
+    showShips = s.ships;
+    saveSetting('ships', s.ships);
+    layers = true;
+  }
+  if (layers) {
+    buildLineFilter();
+    drawLive();
+  }
+}
+
+function renderSettingsNote() {
+  $('settings-note').textContent = GOOGLE_CLIENT_ID ? (user.account ? t().settingsSynced : t().settingsGuest) : '';
+}
+
+function renderThemeButtons() {
+  document.querySelectorAll<HTMLButtonElement>('[data-set-theme]').forEach((b) => b.classList.toggle('on', b.dataset.setTheme === getTheme()));
+}
+document.querySelectorAll<HTMLButtonElement>('[data-set-theme]').forEach((b) =>
+  b.addEventListener('click', () => {
+    setTheme(b.dataset.setTheme as Theme);
+    renderThemeButtons();
+    saveSettings({ theme: getTheme() });
+  }),
+);
+renderThemeButtons();
 
 function renderMyButton() {
   const btn = $('my-btn');
@@ -1192,11 +1280,34 @@ function renderMyPanel() {
   );
 }
 
+// ---- 要望・不具合の送信（GitHub の Issue の作成画面を、本文を入れた状態で開く） ----
+const ISSUES_URL = 'https://github.com/fuuchan-lab/norimono-radar/issues/new';
+function renderRequestForm() {
+  const tx = t();
+  $('request-title').textContent = tx.requestTitle;
+  $('request-text').setAttribute('placeholder', tx.requestPlaceholder);
+  $('request-send').textContent = tx.requestSend;
+  $('request-note').textContent = tx.requestNote;
+}
+$('request-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = ($('request-text') as HTMLTextAreaElement).value.trim();
+  if (!text) return;
+  const c = map.getCenter();
+  // どの画面・言語で書かれたか分かるように、状況を添える
+  const body = `${text}\n\n---\n画面: ${location.href}\n言語: ${lang} / 地図: ${c.lng.toFixed(3)}, ${c.lat.toFixed(3)} z${map.getZoom().toFixed(1)} / ${navigator.userAgent}`;
+  const title = text.split('\n')[0].slice(0, 60);
+  const params = new URLSearchParams({ title, body: body.slice(0, 4000) });
+  window.open(`${ISSUES_URL}?${params}`, '_blank', 'noopener');
+});
+
 // ---- 言語の切り替え（地図はそのままで、文言と名前を描き直す） ----
 function applyLanguage(l: Lang) {
   setLang(l);
   document.title = t().title;
+  renderRequestForm();
   document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) => b.classList.toggle('on', b.dataset.setLang === l));
+  renderSettingsNote();
   if (!timetable) return; // データの読み込み前（読み込み後に今の言語で描く）
   buildLineFilter();
   drawStations();
@@ -1205,9 +1316,13 @@ function applyLanguage(l: Lang) {
   refresh();
 }
 document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) =>
-  b.addEventListener('click', () => applyLanguage(b.dataset.setLang as Lang)),
+  b.addEventListener('click', () => {
+    applyLanguage(b.dataset.setLang as Lang);
+    saveSettings({ lang });
+  }),
 );
 document.title = t().title;
+renderRequestForm();
 document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) => b.classList.toggle('on', b.dataset.setLang === lang));
 
 // ---- パネル操作 ----

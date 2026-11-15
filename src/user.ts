@@ -12,10 +12,18 @@ const DATA_FILE = 'user.json';
 export type FavKind = 'train' | 'aircraft' | 'ship' | 'station';
 /** id: 列車名＋号数 / 便名やコールサイン / MMSI / 駅名。label は一覧に出す名前 */
 export interface Fav { id: string; label: string }
-export interface UserData { version: 1; favorites: Record<FavKind, Fav[]> }
+/** 設定（ログイン中は、変えたものがほかの端末でも既定になる）。未設定の項目は端末の設定のまま */
+export interface Settings {
+  lang?: 'ja' | 'en';
+  theme?: 'auto' | 'light' | 'dark';
+  domestic?: boolean;
+  international?: boolean;
+  ships?: boolean;
+}
+export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings }
 export interface Account { name: string; picture: string }
 
-const emptyData = (): UserData => ({ version: 1, favorites: { train: [], aircraft: [], ship: [], station: [] } });
+const emptyData = (): UserData => ({ version: 1, favorites: { train: [], aircraft: [], ship: [], station: [] }, settings: {} });
 
 const KEY = { token: 'auth.token', account: 'auth.account', data: 'user.data' };
 function load<T>(key: string): T | null {
@@ -144,7 +152,7 @@ async function readRemote(): Promise<UserData | null> {
   fileId = list.files[0]?.id ?? null;
   if (!fileId) return null;
   const d = (await (await api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json()) as Partial<UserData>;
-  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites } };
+  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites }, settings: { ...d.settings } };
 }
 
 async function writeRemote(d: UserData) {
@@ -232,13 +240,26 @@ export function toggleFav(kind: FavKind, fav: Fav): boolean {
   const next = isFav(kind, fav.id) ? list.filter((f) => f.id !== fav.id) : [...list, fav];
   setData({ ...user.data, favorites: { ...user.data.favorites, [kind]: next } });
   emit();
+  persist();
+  return true;
+}
+
+/** 設定を変えたとき（タップの処理から呼ぶ）。ログイン中だけ Google ドライブに保存する。ゲストなら何もしない */
+export function saveSettings(patch: Settings): boolean {
+  if (!user.account) return false;
+  setData({ ...user.data, settings: { ...user.data.settings, ...patch } });
+  emit();
+  persist();
+  return true;
+}
+
+function persist() {
   // トークンが切れていたらここでポップアップを開く（タップの直後でないと開けない）
   const ready = validToken();
   ready.catch(() => {}); // 失敗は下の run で表示する
-  saving =saving.then(() => run(async () => {
+  saving = saving.then(() => run(async () => {
     await ready;
     if (!fileId) await readRemote();
     await writeRemote(user.data);
   }));
-  return true;
 }
