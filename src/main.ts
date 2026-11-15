@@ -7,13 +7,12 @@ import { buildRoutes, distKm, loadData, type Airport, type GeoJSONData, type Lin
 import { aircraftAt, aircraftLabel, fetchAircraft, LIVE_API, type Aircraft } from './aircraft';
 import { inArea, setArea, type AreaFeature } from './area';
 import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
-import { fetchShips, parseShips, shipAt, shipLabel, type Ship } from './ships';
+import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
 import { airportCode } from './names-en';
 import { fetchSchedule, ScheduleError, SCHEDULE_KEY, testKey, type Scheduled, type ScheduleErrorKind } from './schedule';
 import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
 import { effectiveTheme, getTheme, onThemeChange, setTheme, type Theme } from './theme';
-import { aisShips, rememberShips, startAis, stopAis, testAisKey } from './ais';
 import { getApiKey, GOOGLE_CLIENT_ID, isFav, onUserChange, setApiKey, type ApiKeyName, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -238,41 +237,38 @@ async function init() {
   if ('geolocation' in navigator) geolocate.trigger();
   setupUser();
   if (LIVE_API) {
-    // 5 分たったら止める。自分の API キー（aisstream.io）を登録したら再開する
+    // ゲストは 5 分たったら止める。ログインしたら再開する
     setTimeout(() => checkGuestLimit(), GUEST_LIVE_MS + 1000);
-    onUserChange(syncLiveSource);
-    syncLiveSource();
+    onUserChange(syncLive);
     startPolling(async () => {
       aircraft = (await fetchAircraft(aircraft)).filter((a) => inArea([a.lon, a.lat]));
       if (sheet?.kind === 'aircraft' || sheet?.kind === 'airport') renderSheet();
       renderMyPanel();
     });
     startPolling(async () => {
-      // 自分のキーがあれば、ブラウザで直接受信したもの。なければ中継サーバー（最初の 5 分だけ）
-      const own = getApiKey('aisstream') ? aisShips() : null;
-      const next = own ? parseShips(own, ships) : await fetchShips(ships);
-      if (!own) rememberShips(next);
-      ships = next.filter((s) => inArea([s.lon, s.lat]));
+      ships = (await fetchShips(ships)).filter((s) => inArea([s.lon, s.lat]));
       if (sheet?.kind === 'ship') renderSheet();
       renderMyPanel();
     });
   }
 }
 
-// 飛行機・旅客船は開発者の中継サーバー（開発者の aisstream.io のキー・Cloudflare の無料枠）を使うので、
-// ページを開いてから 5 分だけ表示する。続けて見るには、自分の aisstream.io の API キーを登録する
-// （登録すると、旅客船は利用者のブラウザから aisstream.io へ直接つなぐ。飛行機はキー不要の公開データを中継する）
+// 飛行機・旅客船は開発者の中継サーバー（Cloudflare の無料枠）を使うので、ゲストはページを開いてから 5 分だけ表示する。
+// Google でログインすれば続けて見られる（aisstream.io への接続は中継サーバーの 1 本だけなので、見る人が増えても変わらない。
+// aisstream.io はブラウザからの直接接続を禁じているため、利用者のキーは使わない）
 const GUEST_LIVE_MS = 5 * 60 * 1000;
 const startedAt = Date.now();
 let livePaused = false;
 const pollers: (() => void)[] = [];
-const liveAllowed = () => !!getApiKey('aisstream') || Date.now() - startedAt < GUEST_LIVE_MS;
+const liveAllowed = () => !!user.account || Date.now() - startedAt < GUEST_LIVE_MS;
+try {
+  localStorage.removeItem('ais.statics'); // 以前の直接受信で覚えていた船の情報（今は使わない）
+} catch {
+  // 消せなくても影響しない
+}
 
-/** 自分のキーがあれば直接受信を始め、なければ止める。止めていた表示を、キーの登録で再開する */
-function syncLiveSource() {
-  const key = getApiKey('aisstream');
-  if (key) startAis(key);
-  else stopAis();
+/** 止めていた表示を、ログインで再開する */
+function syncLive() {
   if (livePaused && liveAllowed()) {
     livePaused = false;
     $('live-notice').hidden = true;
@@ -303,10 +299,10 @@ function renderLiveNotice() {
   el.hidden = false;
   el.innerHTML = `<p>${GOOGLE_CLIENT_ID ? tx.liveExpired : tx.liveExpiredNoLogin}</p>
     <div class="live-notice-actions">
-      ${GOOGLE_CLIENT_ID ? `<button type="button" id="live-login" class="primary">${tx.liveSetKey}</button>` : ''}
+      ${GOOGLE_CLIENT_ID ? `<button type="button" id="live-login" class="primary">${tx.liveLogin}</button>` : ''}
       <button type="button" id="live-dismiss">${tx.close}</button>
     </div>`;
-  el.querySelector('#live-login')?.addEventListener('click', () => openSettings('aisstream'));
+  el.querySelector('#live-login')?.addEventListener('click', () => signIn());
   el.querySelector('#live-dismiss')!.addEventListener('click', () => (el.hidden = true));
 }
 
@@ -1268,8 +1264,7 @@ function setupUser() {
 }
 
 // ---- 個人設定：API キー（利用者が自分のキーを登録する。ログインしてから） ----
-// aisstream.io: 飛行機・旅客船を 5 分より長く見るため（船はブラウザから直接受信）
-// AeroDataBox: 空港の時刻表
+// AeroDataBox: 空港の時刻表（任意）
 interface KeyProvider {
   name: ApiKeyName;
   text: () => { title: string; intro: string; steps: string[]; note: string; placeholder: string; ok: string };
@@ -1277,16 +1272,6 @@ interface KeyProvider {
   test: (key: string) => Promise<void>;
 }
 const KEY_PROVIDERS: KeyProvider[] = [
-  {
-    name: 'aisstream',
-    text: () => {
-      const tx = t();
-      return { title: tx.aisTitle, intro: tx.aisIntro, steps: tx.aisSteps, note: tx.aisNote, placeholder: tx.aisPlaceholder, ok: tx.aisOk };
-    },
-    test: async (key) => {
-      if (!(await testAisKey(key))) throw new Error(t().aisBad);
-    },
-  },
   {
     name: SCHEDULE_KEY,
     text: () => {
@@ -1369,12 +1354,11 @@ function renderKeys() {
   );
 }
 
-/** キーを登録・削除したら、空港の時刻表を取り直し、飛行機・船の受信を切り替える */
+/** キーを登録・削除したら、空港の時刻表を取り直す */
 function onKeysChanged() {
   schedules.clear();
   if (sheet?.kind === 'airport') loadSchedule(airportCode(sheet.name));
   renderSheet();
-  syncLiveSource();
   renderSettingsInfo();
 }
 
@@ -1451,7 +1435,7 @@ function renderSettingsInfo() {
     [tx.infoLanguage, lang === 'ja' ? '日本語' : 'English'],
     [tx.infoTheme, tx.themeNames[getTheme()]],
     [tx.infoLayers, layers],
-    [tx.infoApiKey, `aisstream.io: ${keyState('aisstream')}<br>AeroDataBox: ${keyState(SCHEDULE_KEY)}`],
+    [tx.infoApiKey, `AeroDataBox: ${keyState(SCHEDULE_KEY)}`],
     [tx.infoSavedTo, user.account ? tx.savedDrive(escapeHtml(user.account.name)) : tx.savedDevice],
   ];
   $('settings-info').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');

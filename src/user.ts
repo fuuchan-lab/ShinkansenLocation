@@ -21,7 +21,7 @@ export interface Settings {
   ships?: boolean;
 }
 /** 個人の API キー（利用者が自分で契約・登録する）。ログイン中は Google ドライブのアプリ専用領域に、ゲストはこの端末だけに保存する */
-export type ApiKeyName = 'aisstream' | 'aerodatabox';
+export type ApiKeyName = 'aerodatabox';
 export type ApiKeys = Partial<Record<ApiKeyName, string>>;
 export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings; keys: ApiKeys }
 export interface Account { name: string; picture: string }
@@ -155,7 +155,9 @@ async function readRemote(): Promise<UserData | null> {
   fileId = list.files[0]?.id ?? null;
   if (!fileId) return null;
   const d = (await (await api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json()) as Partial<UserData>;
-  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites }, settings: { ...d.settings }, keys: { ...d.keys } };
+  // 以前登録できた aisstream.io のキーは使わなくなったので読み込まない（次の保存でドライブからも消える）
+  const keys: ApiKeys = d.keys?.aerodatabox ? { aerodatabox: d.keys.aerodatabox } : {};
+  return { ...emptyData(), ...d, favorites: { ...emptyData().favorites, ...d.favorites }, settings: { ...d.settings }, keys };
 }
 
 async function writeRemote(d: UserData) {

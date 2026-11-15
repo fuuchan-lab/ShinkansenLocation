@@ -39,7 +39,7 @@
         <li><a href="#ja-info">列車・駅・空港・飛行機・船</a></li>
         <li><a href="#ja-login">ログインとマイリスト</a></li>
         <li><a href="#ja-settings">設定</a></li>
-        <li><a href="#ja-keys">API キーの登録</a></li>
+        <li><a href="#ja-keys">空港の時刻表（API キー・任意）</a></li>
         <li><a href="#ja-data">データについて</a></li>
         <li><a href="#ja-official">公式の運行情報</a></li>
         <li><a href="#ja-author">作者について・お問い合わせ</a></li>
@@ -82,9 +82,10 @@
       <h2 id="ja-login">5. ログインとマイリスト</h2>
       <p>見るだけなら、ログインは要りません（ゲスト）。ログインすると、次のことができます。</p>
       <ul>
+        <li>飛行機と旅客船を<strong>5分より長く</strong>見る（ゲストは、ページを開いてから5分で止まります）。</li>
         <li>列車・飛行機・船の<strong>トラッキング</strong>と、<strong>お気に入りの駅</strong>の登録（情報の画面の ☆ を押す）。</li>
         <li>言語・表示モード・表示の切り替えの設定を保存し、ほかの端末でも同じ設定で使う。</li>
-        <li>API キーの登録（下の 7）。</li>
+        <li>空港の時刻表を出すための API キーの登録（任意。下の 7）。</li>
       </ul>
       <h3>ログインのしかた</h3>
       <ol>
@@ -102,22 +103,49 @@
         <li>設定の画面から、要望・不具合・お問い合わせを送れます（Google フォームが開きます。ログインは要りません）。</li>
       </ul>
 
-      <h2 id="ja-keys">7. API キーの登録</h2>
-      <p>飛行機と旅客船は、ゲストは<strong>ページを開いてから5分だけ</strong>表示します（作者の中継サーバーと API キーを使うため）。続けて見るには、ご自身の API キー（無料）を登録してください。API キーの登録には、Google ログインが必要です。キーはあなたの Google ドライブに保存され、作者が受け取ることはありません。</p>
-      <h3>aisstream.io（飛行機・旅客船を続けて見る）</h3>
+      <h2 id="ja-keys">7. 空港の時刻表を出す（API キーの登録・任意）</h2>
+      <p><strong>登録しなくても、アプリはすべて使えます。</strong>飛行機・旅客船を5分より長く見るのに必要なのは、Google でのログインだけです。</p>
+      <p>API キーを登録すると、空港をタップしたときに、今飛んでいる便に加えて、<strong>出発（今後12時間）と到着（前後2時間）の時刻表</strong>も出ます。時刻表のデータは AeroDataBox のもので、RapidAPI というサービスを通して、無料のプランで使えます。</p>
+      <h3>準備するもの</h3>
+      <ul>
+        <li>Google アカウント（このアプリへのログインと、RapidAPI の登録の両方に使います）</li>
+        <li>パソコン（おすすめ）。相手先のサイトは英語で、スマホでは見づらいためです。所要時間は10分ほどです。</li>
+        <li>料金はかかりません。無料のプラン（Basic）は、回数の上限に達すると止まるだけで、請求はされません。</li>
+      </ul>
+      <h3>手順1：RapidAPI のアカウントを作る</h3>
       <ol>
-        <li><a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> を開き、「Continue with GitHub」を押す（無料）。aisstream.io は GitHub のアカウントでサインインする仕組みです。GitHub のアカウントがなくても、GitHub のログイン画面で「<strong>Continue with Google</strong>」（または「Continue with Apple」）を選べば、Google のアカウントで作れます。</li>
-        <li>「API Keys」で「Create New API Key」を押す。</li>
-        <li>キーをコピーし、「設定」→「API キー：飛行機・旅客船」の欄に貼り付けて「保存してテスト」を押す。</li>
+        <li><a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI の登録画面</a>を開く。</li>
+        <li>「<strong>Signup with Google</strong>」を押し、ご自分の Google アカウントを選ぶ（メールアドレスとパスワードを入力する欄は使わなくて大丈夫です）。</li>
+        <li>名前や利用目的などを聞かれたら、入力して進む。</li>
       </ol>
-      <p>登録すると、旅客船はあなたのブラウザから aisstream.io へ直接つないで受信します。船種は約6分おきにしか届かないため、登録してすぐは表示される船が少なめです。</p>
-      <h3>AeroDataBox（空港の時刻表）</h3>
+      <h3>手順2：AeroDataBox の無料プランを申し込む</h3>
       <ol>
-        <li><a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI</a> に無料で登録する。</li>
-        <li><a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox の料金ページ</a>で、無料（$0）のプランの「Subscribe」を押す。無料枠を超えたときに課金されずに止まるプランかを、画面で確認してください。</li>
-        <li>AeroDataBox の画面に出る「X-RapidAPI-Key」をコピーし、「設定」→「API キー：空港の時刻表」に貼り付けて「保存してテスト」を押す。</li>
+        <li><a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox の料金ページ</a>を開く（「Choose the plan that's right for You」と書かれた画面です）。</li>
+        <li>いちばん左の「<strong>Basic　$0.00 /mo</strong>」の列の下にある「<strong>Start Free Plan</strong>」を押す。右の Pro・Ultra・Mega は有料なので押さないでください。</li>
+        <li>確認の画面が出たら「<strong>Subscribe</strong>」を押す。</li>
       </ol>
-      <p>空港を開くたびに2回分を使うため、同じ空港は15分間、結果を使い回します。無料枠の回数は変わることがあるので、プランの画面で確認してください。</p>
+      <h3>手順3：API キーをコピーする</h3>
+      <ol>
+        <li><a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/playground" target="_blank" rel="noopener">AeroDataBox の Playground</a> を開く。</li>
+        <li>画面右側のコードの例の中に、<code>x-rapidapi-key</code> と書かれた行があります。その後ろの長い英数字（50文字ほど）が、あなたの API キーです。</li>
+        <li>引用符（' '）の内側の英数字だけを選んでコピーする。</li>
+        <li>見つからないときは、画面右上の自分のアイコン →「<strong>My Apps</strong>」→「<strong>default-application</strong>」→「<strong>Authorization</strong>」を開き、「Application Key」の横のコピーのボタンを押しても、同じキーをコピーできます。</li>
+      </ol>
+      <h3>手順4：このアプリに登録する</h3>
+      <ol>
+        <li>このアプリで、右上の「ログイン」から Google でログインする（まだの場合）。</li>
+        <li>下のメニューの「設定」→「<strong>API キー：空港の時刻表（AeroDataBox・任意）</strong>」を開く。</li>
+        <li>欄にキーを貼り付けて、「<strong>保存してテスト</strong>」を押す。</li>
+        <li>「使えることを確認しました」と出れば完了です。地図の空港をタップすると、時刻表が出ます。</li>
+      </ol>
+      <h3>うまくいかないとき</h3>
+      <ul>
+        <li>「キーが正しくないか、AeroDataBox のプランに登録されていません」：手順2の「Start Free Plan」が済んでいるか、キーの前後に空白や引用符が入っていないかを確かめてください。</li>
+        <li>「無料枠の上限に達しています」：その月の回数を使い切っています。翌月に戻ります。</li>
+      </ul>
+      <h3>無料プランで使える回数</h3>
+      <p>毎月400ユニットまでです。空港を1回開くと、出発と到着で4ユニット使うので、月に約100回開けます。同じ空港は15分間、結果を使い回すので数えません。上限に達しても、今飛んでいる便の表示は続きます。</p>
+      <p>キーはあなたの Google ドライブのこのアプリ専用の領域に保存され、ブラウザから RapidAPI に直接送られます。作者が受け取ることはありません。サイトの画面や条件は変わることがあります。</p>
 
       <h2 id="ja-data">8. データについて</h2>
       <ul>
@@ -176,7 +204,7 @@
         <li><a href="#en-info">Trains, stations, airports, flights, ships</a></li>
         <li><a href="#en-login">Sign-in and My list</a></li>
         <li><a href="#en-settings">Settings</a></li>
-        <li><a href="#en-keys">Registering API keys</a></li>
+        <li><a href="#en-keys">Airport timetables (API key, optional)</a></li>
         <li><a href="#en-data">About the data</a></li>
         <li><a href="#en-official">Official service info</a></li>
         <li><a href="#en-author">Author and contact</a></li>
@@ -219,9 +247,10 @@
       <h2 id="en-login">5. Sign-in and My list</h2>
       <p>You can view everything without signing in (as a guest). Signing in lets you:</p>
       <ul>
+        <li>View flights and ferries for <strong>longer than 5 minutes</strong> (for guests they stop 5 minutes after opening the page).</li>
         <li><strong>Track</strong> trains, flights and ferries and save <strong>favorite stations</strong> (press ☆ on their information).</li>
         <li>Save your language, appearance and layer settings and use them on your other devices.</li>
-        <li>Register API keys (section 7).</li>
+        <li>Register an API key for airport timetables (optional, section 7).</li>
       </ul>
       <h3>How to sign in</h3>
       <ol>
@@ -239,22 +268,49 @@
         <li>You can send requests, bug reports or questions from Settings (opens a Google Form; no sign-in needed).</li>
       </ul>
 
-      <h2 id="en-keys">7. Registering API keys</h2>
-      <p>Guests can see flights and ferries for <strong>the first 5 minutes</strong> after opening the page (they use the author's relay server and API key). To keep viewing them, register your own free API key. Registering keys requires Google sign-in. Keys are saved in your Google Drive and never sent to the author.</p>
-      <h3>aisstream.io (keep viewing flights and ferries)</h3>
+      <h2 id="en-keys">7. Airport timetables (API key, optional)</h2>
+      <p><strong>You can use the whole app without this.</strong> To view flights and ferries for longer than 5 minutes, all you need is to sign in with Google.</p>
+      <p>With an API key, tapping an airport also shows its <strong>timetable: departures for the next 12 hours and arrivals from 2 hours ago to 2 hours ahead</strong>, in addition to flights in the air. The timetable data comes from AeroDataBox through a service called RapidAPI, on a free plan.</p>
+      <h3>What you need</h3>
+      <ul>
+        <li>A Google account (used both to sign in to this app and to sign up for RapidAPI)</li>
+        <li>A PC (recommended), as the RapidAPI site is hard to use on a phone. It takes about 10 minutes.</li>
+        <li>No charges: the free plan (Basic) simply stops when its quota is reached; you are not billed.</li>
+      </ul>
+      <h3>Step 1: Create a RapidAPI account</h3>
       <ol>
-        <li>Open <a href="https://aisstream.io/authenticate" target="_blank" rel="noopener">aisstream.io</a> and press "Continue with GitHub" (free). aisstream.io signs you in with a GitHub account. If you don't have one, choose "<strong>Continue with Google</strong>" (or "Continue with Apple") on GitHub's sign-in page to create one with your Google account.</li>
-        <li>Under "API Keys", press "Create New API Key".</li>
-        <li>Copy the key, paste it into Settings → "API key: flights and ferries" and press "Save and test".</li>
+        <li>Open the <a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI sign-up page</a>.</li>
+        <li>Press "<strong>Signup with Google</strong>" and choose your Google account (you don't need the email and password fields).</li>
+        <li>If asked for a name or purpose, fill it in and continue.</li>
       </ol>
-      <p>With your key, ferries are received directly from aisstream.io in your browser. Ship types arrive only about every 6 minutes, so few ships are shown right after you register.</p>
-      <h3>AeroDataBox (airport timetables)</h3>
+      <h3>Step 2: Subscribe to AeroDataBox's free plan</h3>
       <ol>
-        <li>Sign up for free at <a href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noopener">RapidAPI</a>.</li>
-        <li>On the <a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox pricing page</a>, press "Subscribe" on the free ($0) plan. Check that the plan stops, rather than charging you, when the free quota runs out.</li>
-        <li>Copy the "X-RapidAPI-Key" shown on the AeroDataBox page, paste it into Settings → "API key: airport timetables" and press "Save and test".</li>
+        <li>Open the <a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing" target="_blank" rel="noopener">AeroDataBox pricing page</a> ("Choose the plan that's right for You").</li>
+        <li>Press "<strong>Start Free Plan</strong>" at the bottom of the "<strong>Basic $0.00 /mo</strong>" column on the far left. Pro, Ultra and Mega on the right are paid plans.</li>
+        <li>If a confirmation appears, press "<strong>Subscribe</strong>".</li>
       </ol>
-      <p>Opening an airport uses 2 calls, so the same airport reuses its result for 15 minutes. Free quotas can change, so check them on the plan screen.</p>
+      <h3>Step 3: Copy your API key</h3>
+      <ol>
+        <li>Open the <a href="https://rapidapi.com/aedbx-aedbx/api/aerodatabox/playground" target="_blank" rel="noopener">AeroDataBox Playground</a>.</li>
+        <li>In the code sample on the right there is a line with <code>x-rapidapi-key</code>. The long string after it (about 50 characters) is your API key.</li>
+        <li>Select and copy only the characters inside the quotes (' ').</li>
+        <li>If you can't find it, open your icon at the top right → "<strong>My Apps</strong>" → "<strong>default-application</strong>" → "<strong>Authorization</strong>" and press the copy button next to "Application Key". It is the same key.</li>
+      </ol>
+      <h3>Step 4: Register it in this app</h3>
+      <ol>
+        <li>Sign in with Google from "Log in" at the top right of this app (if you haven't yet).</li>
+        <li>Open Settings in the bottom menu → "<strong>API key: airport timetables (AeroDataBox, optional)</strong>".</li>
+        <li>Paste the key and press "<strong>Save and test</strong>".</li>
+        <li>When "The key works" appears, you are done. Tap an airport on the map to see its timetable.</li>
+      </ol>
+      <h3>If it doesn't work</h3>
+      <ul>
+        <li>"The key is wrong, or you have not subscribed to an AeroDataBox plan": check that you finished "Start Free Plan" in step 2 and that there are no spaces or quotes around the key.</li>
+        <li>"The free quota has been reached": you have used up this month's quota. It resets next month.</li>
+      </ul>
+      <h3>How much the free plan allows</h3>
+      <p>400 units a month. Opening an airport uses 4 units (departures and arrivals), so about 100 airport views a month. The same airport reuses its result for 15 minutes without counting. Flights in the air are still shown after the limit is reached.</p>
+      <p>The key is saved in this app's private area of your Google Drive and sent directly from your browser to RapidAPI. The author never receives it. The sites and conditions may change.</p>
 
       <h2 id="en-data">8. About the data</h2>
       <ul>
