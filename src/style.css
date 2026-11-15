@@ -107,10 +107,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   content: ''; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px;
   border-radius: 2px; background: #d0d4da;
 }
+/* スクロールしても右上に残り、駅の時刻表の固定見出しより手前に出す。
+   下の余白を打ち消して、本文の位置は変えない */
 .sheet-close {
-  position: absolute; top: 10px; right: 10px; width: 32px; height: 32px;
+  position: sticky; top: 6px; z-index: 3;
+  display: block; margin: -6px -6px -26px auto; width: 32px; height: 32px;
   border: none; border-radius: 50%; background: #f1f3f5; font-size: 18px; line-height: 1;
 }
+#sheet-body { display: flow-root; }
 body.has-sheet .maplibregl-ctrl-bottom-right { display: none; }
 
 .sheet-head { display: flex; align-items: baseline; gap: 8px; padding-right: 36px; }
