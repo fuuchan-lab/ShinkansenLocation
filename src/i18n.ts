@@ -132,6 +132,14 @@ const ja = {
   schedNote: '時刻表は AeroDataBox のデータです（日本時間）。「飛行中」の便をタップすると現在位置を表示します。',
   inFlight: '飛行中',
   statuses: { Expected: '定刻', EnRoute: '飛行中', CheckIn: '搭乗手続き', Boarding: '搭乗中', GateClosed: '搭乗終了', Departed: '出発済み', Delayed: '遅延', Approaching: '着陸間近', Arrived: '到着済み', Canceled: '欠航', Diverted: '行先変更' } as Record<string, string>,
+  // ゲストの表示時間
+  liveExpired: 'ゲストの表示時間（5分）が終わったため、飛行機と旅客船の表示を止めました。Google アカウントでログインすると、続けて表示できます（無料）。新幹線は引き続き表示しています。',
+  liveExpiredNoLogin: 'ゲストの表示時間（5分）が終わったため、飛行機と旅客船の表示を止めました。新幹線は引き続き表示しています。',
+  // 検索
+  searchPlaceholder: '駅・空港・列車・便名・船名で検索',
+  searchEmpty: '見つかりませんでした。',
+  searchHint: '例: 東京、HND、のぞみ1、NH20、さんふらわあ',
+  airport: '空港',
   // 要望・不具合の送信
   requestTitle: '要望・不具合を送る',
   requestPlaceholder: '例: 空港の一覧に到着ゲートも出してほしい',
@@ -268,6 +276,12 @@ const english: typeof ja = {
   schedNote: 'Timetable data from AeroDataBox (Japan time). Tap an "In flight" flight to see where it is now.',
   inFlight: 'In flight',
   statuses: { Expected: 'On time', EnRoute: 'En route', CheckIn: 'Check-in', Boarding: 'Boarding', GateClosed: 'Gate closed', Departed: 'Departed', Delayed: 'Delayed', Approaching: 'Approaching', Arrived: 'Arrived', Canceled: 'Canceled', Diverted: 'Diverted' } as Record<string, string>,
+  liveExpired: 'The 5-minute guest viewing time for flights and ferries has ended. Sign in with Google (free) to keep viewing them. Shinkansen trains are still shown.',
+  liveExpiredNoLogin: 'The 5-minute guest viewing time for flights and ferries has ended. Shinkansen trains are still shown.',
+  searchPlaceholder: 'Search stations, airports, trains, flights, ships',
+  searchEmpty: 'No results.',
+  searchHint: 'e.g. Tokyo, HND, Nozomi 1, NH20, Sunflower',
+  airport: 'Airport',
   requestTitle: 'Send a request or bug report',
   requestPlaceholder: 'e.g. Show arrival gates in the airport list',
   requestSend: 'Send on GitHub',

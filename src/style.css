@@ -342,6 +342,63 @@ html:not([lang='en']) [data-lang='en'], html[lang='en'] [data-lang='ja'] { displ
 .theme-switch button { flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
 .theme-switch button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* ---- 設定・フィルター・検索のパネル ---- */
+.settings h3 { margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
+.settings h3:first-of-type { margin-top: 0; }
+.secondary { width: 100%; margin: 12px 0 8px; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 14px; }
+#filter-slot .line-filter { position: static; flex-wrap: wrap; overflow: visible; padding: 0 0 12px; }
+#filter-slot .chip { box-shadow: none; }
+#filter-slot .chip-sep { display: none; }
+#search-input {
+  width: 100%; padding: 10px 12px; font: inherit; font-size: 16px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg);
+}
+.search-results { list-style: none; margin: 8px 0 10px; padding: 0; max-height: 50vh; overflow-y: auto; }
+.search-results li { border-bottom: 1px solid var(--line); }
+.search-results button { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 4px; border: none; background: none; text-align: left; font-size: 14px; }
+.search-results .kind { flex: none; min-width: 4.5em; font-size: 11px; color: var(--muted); }
+.search-results .sub { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-results .empty { padding: 10px 4px; font-size: 13px; color: var(--muted); }
+
+/* ---- ゲストの表示時間が終わったときの案内 ---- */
+.live-notice {
+  position: fixed; z-index: 15; left: 8px; right: 8px; bottom: calc(var(--nav-h, var(--safe-bottom)) + 8px);
+  padding: 12px 14px; border-radius: var(--radius); background: var(--glass); box-shadow: var(--shadow);
+  backdrop-filter: blur(8px); font-size: 13px; line-height: 1.6;
+}
+.live-notice p { margin: 0 0 8px; }
+.live-notice-actions { display: flex; gap: 8px; }
+.live-notice-actions .primary { flex: 1; width: auto; }
+.live-notice-actions button:not(.primary) { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
+@media (min-width: 768px) { .live-notice { left: auto; right: 12px; bottom: 24px; width: 360px; } }
+
+/* ---- スマホ: 画面の一番下のメニュー ---- */
+.bottom-nav { display: none; }
+@media (max-width: 767px) {
+  :root { --nav-h: calc(58px + var(--safe-bottom)); }
+  .desktop-only { display: none !important; }
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    display: flex; height: var(--nav-h); padding-bottom: var(--safe-bottom);
+    background: var(--glass); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+  }
+  .bottom-nav button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border: none; background: none; color: var(--muted); font-size: 10px;
+  }
+  .bottom-nav svg { width: 23px; height: 23px; }
+  .bottom-nav button.on { color: var(--link); }
+  /* シート・パネル・地図のボタンは、メニューの上に出す */
+  .sheet { bottom: var(--nav-h); max-height: 50vh; padding-bottom: 16px; }
+  .popover { bottom: calc(var(--nav-h) + 8px); max-height: calc(100vh - var(--nav-h) - 110px); }
+  .popover.search { top: calc(8px + var(--safe-top)); bottom: auto; }
+  .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { margin-bottom: var(--nav-h); }
+  /* 現在地はメニューから。地図の現在地ボタンは隠す */
+  .maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate) { display: none; }
+  .line-filter { display: none; }
+  #filter-slot .line-filter { display: flex; }
+}
+
 /* ---- PC・タブレット ---- */
 @media (min-width: 768px) {
   .topbar { left: 12px; right: auto; width: 420px; top: 12px; }

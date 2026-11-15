@@ -40,11 +40,17 @@
         <span id="clock-time">--:--</span>
         <span id="clock-count" class="count"></span>
       </button>
-      <button id="my-btn" class="icon-btn my-btn" type="button" aria-label="マイリスト / My list" hidden></button>
-      <button id="info-btn" class="icon-btn" type="button" aria-label="このアプリについて / About">i</button>
+      <button id="my-btn" class="icon-btn my-btn desktop-only" type="button" aria-label="マイリスト / My list" hidden></button>
+      <button id="settings-btn" class="icon-btn gear desktop-only" type="button" aria-label="設定 / Settings">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+      </button>
+      <button id="info-btn" class="icon-btn desktop-only" type="button" aria-label="このアプリについて / About">i</button>
     </header>
 
     <nav id="line-filter" class="line-filter" aria-label="表示の切替 / Layers"></nav>
+
+    <!-- ゲストの表示時間（飛行機・船は 5 分）が終わったときの案内 -->
+    <div id="live-notice" class="live-notice" role="status" hidden></div>
 
     <aside id="sheet" class="sheet" hidden>
       <button id="sheet-close" class="sheet-close" type="button" aria-label="閉じる / Close">×</button>
@@ -66,24 +72,71 @@
       <button id="time-now" type="button" class="primary"><span data-lang="ja">現在時刻に戻す</span><span data-lang="en">Back to now</span></button>
     </div>
 
-    <!-- my-main は 1 分ごとなどに描き直す。my-keys は入力中の内容を消さないよう、別に描く -->
+    <!-- my-main は 1 分ごとなどに描き直す -->
     <div id="my-panel" class="popover my" hidden>
       <div id="my-main"></div>
-      <div id="my-keys"></div>
       <button type="button" id="my-close" class="primary"></button>
     </div>
 
-    <div id="info-panel" class="popover info" hidden>
+    <!-- 設定: 言語・表示モード・個人設定（API キー）。my-keys は入力中の内容を消さないよう、別に描く -->
+    <div id="settings-panel" class="popover settings" hidden>
+      <h2><span data-lang="ja">設定</span><span data-lang="en">Settings</span></h2>
+      <h3><span data-lang="ja">言語</span><span data-lang="en">Language</span></h3>
       <div class="lang-switch" role="group" aria-label="言語 / Language">
         <button type="button" data-set-lang="ja">日本語</button>
         <button type="button" data-set-lang="en">English</button>
       </div>
+      <h3><span data-lang="ja">表示モード</span><span data-lang="en">Appearance</span></h3>
       <div class="theme-switch" role="group" aria-label="表示 / Appearance">
         <button type="button" data-set-theme="auto"><span data-lang="ja">自動</span><span data-lang="en">Auto</span></button>
         <button type="button" data-set-theme="light"><span data-lang="ja">ライト</span><span data-lang="en">Light</span></button>
         <button type="button" data-set-theme="dark"><span data-lang="ja">ダーク</span><span data-lang="en">Dark</span></button>
       </div>
       <p class="small settings-note" id="settings-note"></p>
+      <div id="my-keys"></div>
+      <button type="button" id="open-info" class="secondary"><span data-lang="ja">このアプリについて・作者・お問い合わせ</span><span data-lang="en">About, author and contact</span></button>
+      <button type="button" id="settings-close" class="primary"><span data-lang="ja">閉じる</span><span data-lang="en">Close</span></button>
+    </div>
+
+    <!-- 表示の切り替え（スマホでは、上に並ぶボタンをこのパネルに移す） -->
+    <div id="filter-panel" class="popover filter" hidden>
+      <h2><span data-lang="ja">表示の切り替え</span><span data-lang="en">Layers</span></h2>
+      <div id="filter-slot"></div>
+      <button type="button" id="filter-close" class="primary"><span data-lang="ja">閉じる</span><span data-lang="en">Close</span></button>
+    </div>
+
+    <!-- 検索: 駅・空港・列車・便名・船名 -->
+    <div id="search-panel" class="popover search" hidden>
+      <input id="search-input" type="search" autocomplete="off" enterkeyhint="search" />
+      <ul id="search-results" class="search-results"></ul>
+      <button type="button" id="search-close" class="primary"><span data-lang="ja">閉じる</span><span data-lang="en">Close</span></button>
+    </div>
+
+    <!-- スマホ用: 画面の一番下のメニュー -->
+    <nav id="bottom-nav" class="bottom-nav" aria-label="メニュー / Menu">
+      <button type="button" data-nav="filter">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span data-lang="ja">フィルター</span><span data-lang="en">Filter</span>
+      </button>
+      <button type="button" data-nav="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span data-lang="ja">検索</span><span data-lang="en">Search</span>
+      </button>
+      <button type="button" data-nav="locate">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span data-lang="ja">現在地</span><span data-lang="en">Location</span>
+      </button>
+      <button type="button" data-nav="my">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span data-lang="ja">マイリスト</span><span data-lang="en">My list</span>
+      </button>
+      <button type="button" data-nav="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+        <span data-lang="ja">設定</span><span data-lang="en">Settings</span>
+      </button>
+    </nav>
+
+    <div id="info-panel" class="popover info" hidden>
       <div data-lang="ja">
         <h2>このアプリについて</h2>
         <p>列車の位置は、運転パターンから作った<strong>推定時刻表</strong>をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。</p>

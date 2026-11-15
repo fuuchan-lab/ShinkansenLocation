@@ -237,6 +237,15 @@ async function init() {
   if ('geolocation' in navigator) geolocate.trigger();
   setupUser();
   if (LIVE_API) {
+    // ゲストは 5 分たったら止める。ログインしたら再開する
+    setTimeout(() => checkGuestLimit(), GUEST_LIVE_MS + 1000);
+    onUserChange(() => {
+      if (user.account && livePaused) {
+        livePaused = false;
+        $('live-notice').hidden = true;
+        pollers.forEach((p) => p());
+      }
+    });
     startPolling(async () => {
       aircraft = (await fetchAircraft(aircraft)).filter((a) => inArea([a.lon, a.lat]));
       if (sheet?.kind === 'aircraft' || sheet?.kind === 'airport') renderSheet();
@@ -250,11 +259,48 @@ async function init() {
   }
 }
 
-/** 一定間隔で取得する。画面が見えていないときは取得しない */
+// 飛行機・旅客船は開発者の中継サーバー（aisstream.io のキー・Cloudflare の無料枠）を使うので、
+// ゲストはページを開いてから 5 分だけ表示する。ログインすれば続けて表示する
+const GUEST_LIVE_MS = 5 * 60 * 1000;
+const startedAt = Date.now();
+let livePaused = false;
+const pollers: (() => void)[] = [];
+const liveAllowed = () => !!user.account || Date.now() - startedAt < GUEST_LIVE_MS;
+
+/** ゲストの時間が過ぎていれば、飛行機・船を消して案内を出す。止めたら true */
+function checkGuestLimit(): boolean {
+  if (liveAllowed()) return false;
+  if (!livePaused) {
+    livePaused = true;
+    aircraft = [];
+    ships = [];
+    drawLive();
+    renderSheet();
+    renderLiveNotice();
+  }
+  return true;
+}
+
+function renderLiveNotice() {
+  const el = $('live-notice');
+  if (!livePaused) return;
+  const tx = t();
+  el.hidden = false;
+  el.innerHTML = `<p>${GOOGLE_CLIENT_ID ? tx.liveExpired : tx.liveExpiredNoLogin}</p>
+    <div class="live-notice-actions">
+      ${GOOGLE_CLIENT_ID ? `<button type="button" id="live-login" class="primary">${tx.signIn}</button>` : ''}
+      <button type="button" id="live-dismiss">${tx.close}</button>
+    </div>`;
+  el.querySelector('#live-login')?.addEventListener('click', () => openMyPanel());
+  el.querySelector('#live-dismiss')!.addEventListener('click', () => (el.hidden = true));
+}
+
+/** 一定間隔で取得する。画面が見えていないとき・ゲストの時間が過ぎたときは取得しない */
 function startPolling(load: () => Promise<void>) {
   let timer = 0;
   const poll = async () => {
     clearTimeout(timer);
+    if (checkGuestLimit()) return;
     try {
       await load();
     } catch (err) {
@@ -265,6 +311,7 @@ function startPolling(load: () => Promise<void>) {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) poll();
   });
+  pollers.push(poll);
   poll();
 }
 
@@ -1169,7 +1216,7 @@ function bindSheet() {
     b.addEventListener('click', () => openAircraft(b.dataset.aircraft!)),
   );
   body.querySelectorAll<HTMLButtonElement>('[data-open-keys]').forEach((b) =>
-    b.addEventListener('click', () => openMyPanel('', true)),
+    b.addEventListener('click', () => openSettings(true)),
   );
 }
 
@@ -1311,14 +1358,11 @@ function renderMyButton() {
   btn.setAttribute('aria-label', a ? `${t().myList} (${a.name})` : t().myListLogin);
 }
 
-function openMyPanel(notice = '', showKeys = false) {
+function openMyPanel(notice = '') {
   myNotice = notice;
   if (GOOGLE_CLIENT_ID) preloadGoogle().catch(() => {}); // ログインのポップアップをタップ直後に開けるように
-  if (showKeys) keysOpen = true;
   togglePanel('my-panel', true);
   renderMyPanel();
-  renderKeys();
-  if (showKeys) $('my-keys').scrollIntoView({ block: 'nearest' });
 }
 
 function renderMyPanel() {
@@ -1432,6 +1476,8 @@ function applyLanguage(l: Lang) {
   drawAirports();
   renderMyButton();
   renderKeys();
+  if (!$('live-notice').hidden) renderLiveNotice();
+  if (!$('search-panel').hidden) renderSearch();
   refresh();
 }
 document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) =>
@@ -1445,12 +1491,132 @@ renderRequestForm();
 document.querySelectorAll<HTMLButtonElement>('[data-set-lang]').forEach((b) => b.classList.toggle('on', b.dataset.setLang === lang));
 
 // ---- パネル操作 ----
+const PANELS = ['time-panel', 'info-panel', 'my-panel', 'settings-panel', 'filter-panel', 'search-panel'];
+// 下のメニューのボタンと、開くパネル
+const NAV_PANEL: Record<string, string> = { filter: 'filter-panel', search: 'search-panel', my: 'my-panel', settings: 'settings-panel' };
 function togglePanel(id: string, force?: boolean) {
   const el = $(id);
   const open = force ?? el.hidden;
-  for (const p of ['time-panel', 'info-panel', 'my-panel']) $(p).hidden = true;
+  for (const p of PANELS) $(p).hidden = true;
   el.hidden = !open;
+  document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach((b) => b.classList.toggle('on', !$(NAV_PANEL[b.dataset.nav!] ?? 'map').hidden && !!NAV_PANEL[b.dataset.nav!]));
 }
+
+// ---- 設定（言語・表示モード・個人設定の API キー） ----
+function openSettings(showKeys = false) {
+  if (showKeys) keysOpen = true;
+  togglePanel('settings-panel', true);
+  renderSettingsNote();
+  renderThemeButtons();
+  renderKeys();
+  if (showKeys) $('my-keys').scrollIntoView({ block: 'nearest' });
+}
+$('settings-btn').addEventListener('click', () => ($('settings-panel').hidden ? openSettings() : togglePanel('settings-panel', false)));
+$('settings-close').addEventListener('click', () => togglePanel('settings-panel', false));
+$('open-info').addEventListener('click', () => togglePanel('info-panel', true));
+$('filter-close').addEventListener('click', () => togglePanel('filter-panel', false));
+$('search-close').addEventListener('click', () => togglePanel('search-panel', false));
+
+// ---- スマホ: 下のメニュー。路線などのボタンは、スマホではフィルターのパネルに移す ----
+const mobile = matchMedia('(max-width: 767px)');
+function placeFilterBar() {
+  const nav = $('line-filter');
+  if (mobile.matches) {
+    if (nav.parentElement !== $('filter-slot')) $('filter-slot').appendChild(nav);
+  } else if (nav.parentElement === $('filter-slot')) {
+    document.body.insertBefore(nav, $('sheet'));
+    placeLineFilter();
+  }
+}
+mobile.addEventListener('change', placeFilterBar);
+placeFilterBar();
+
+document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach((b) =>
+  b.addEventListener('click', () => {
+    const nav = b.dataset.nav!;
+    if (nav === 'locate') {
+      togglePanel('filter-panel', false);
+      geolocate.trigger();
+    } else if (nav === 'settings') {
+      if ($('settings-panel').hidden) openSettings();
+      else togglePanel('settings-panel', false);
+    } else if (nav === 'my') {
+      if ($('my-panel').hidden) openMyPanel();
+      else togglePanel('my-panel', false);
+    } else if (nav === 'search') {
+      togglePanel('search-panel');
+      if (!$('search-panel').hidden) {
+        renderSearch();
+        $('search-input').focus();
+      }
+    } else {
+      togglePanel(NAV_PANEL[nav]);
+    }
+  }),
+);
+
+// ---- 検索（駅・空港・走行中の列車・飛行中の便・船） ----
+let searchHits: (() => void)[] = [];
+function renderSearch() {
+  const tx = t();
+  const input = $('search-input') as HTMLInputElement;
+  input.placeholder = tx.searchPlaceholder;
+  const norm = (s: string) => s.toLowerCase().replace(/[\s・-]/g, '');
+  const q = norm(input.value);
+  const list = $('search-results');
+  if (!q) {
+    list.innerHTML = `<li class="empty">${tx.searchHint}</li>`;
+    return;
+  }
+  type Hit = { kind: string; label: string; sub: string; open: () => void; rank: number };
+  const hits: Hit[] = [];
+  const match = (...names: (string | undefined)[]) => {
+    let best = -1;
+    for (const n of names) {
+      if (!n) continue;
+      const v = norm(n);
+      if (v.startsWith(q)) return 0;
+      if (v.includes(q)) best = 1;
+    }
+    return best;
+  };
+  for (const s of stationMap.values()) {
+    const r = match(s.name, station(s.name));
+    if (r >= 0) hits.push({ kind: tx.stations, label: station(s.name), sub: s.lines.map((id) => lineShort(lines.find((l) => l.id === id)!)).join('・'), open: () => openStation(s.name), rank: r });
+  }
+  for (const a of airports) {
+    const code = airportCode(a.name);
+    const r = match(a.name, airportName(a.name), code);
+    if (r >= 0) hits.push({ kind: tx.airport, label: airportName(a.name), sub: code, open: () => openAirport(a.name), rank: r });
+  }
+  for (const st of states) {
+    const r = match(`${st.train.n}${st.train.no}`, trainLabel(st.train.n, st.train.no));
+    const route = routes.get(st.train.r)!;
+    const dest = route.stations[st.train.s[st.train.s.length - 1][0]].name;
+    if (r >= 0) hits.push({ kind: tx.trains, label: trainTitle(st.train.n, st.train.no), sub: tx.bound(station(dest)), open: () => openTrain(st.id), rank: r });
+  }
+  for (const a of aircraft) {
+    const r = match(a.flight, a.callsign, a.reg);
+    if (r >= 0) hits.push({ kind: tx.aircraft, label: aircraftLabel(a), sub: a.from && a.to ? `${a.from} → ${a.to}` : '', open: () => openAircraft(a.hex), rank: r });
+  }
+  for (const s of ships) {
+    const r = match(s.name, String(s.mmsi));
+    if (r >= 0) hits.push({ kind: tx.ships, label: shipLabel(s), sub: '', open: () => openShip(s.mmsi), rank: r });
+  }
+  const shown = hits.sort((x, y) => x.rank - y.rank).slice(0, 40);
+  searchHits = shown.map((h) => h.open);
+  list.innerHTML = shown.length
+    ? shown.map((h, i) => `<li><button type="button" data-hit="${i}"><span class="kind">${h.kind}</span><b>${escapeHtml(h.label)}</b><span class="sub">${escapeHtml(h.sub)}</span></button></li>`).join('')
+    : `<li class="empty">${tx.searchEmpty}</li>`;
+}
+$('search-input').addEventListener('input', renderSearch);
+$('search-results').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-hit]');
+  if (!b) return;
+  togglePanel('search-panel', false);
+  (e.target as HTMLElement).blur();
+  searchHits[Number(b.dataset.hit)]?.();
+});
 $('sheet-close').addEventListener('click', closeSheet);
 $('clock').addEventListener('click', () => {
   ($('time-input') as HTMLInputElement).value = formatTime(nowMinutes());
