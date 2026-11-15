@@ -1,7 +1,7 @@
 # のりものレーダー（Norimono Radar）— プロジェクトの指示
 
 日本の新幹線（推定位置）・日本の上空の飛行機・近海の旅客船を地図に表示する Web アプリ。
-公開先: https://fuuchan-lab.github.io/norimono-radar/ （リポジトリ: fuuchan-lab/norimono-radar）
+公開先: https://norimono-radar.doitmyself.net/ （GitHub Pages の独自ドメイン。`public/CNAME`。Vite の base は `/`。リポジトリ: fuuchan-lab/norimono-radar）
 
 指示は、チャットのほか、アプリの「このアプリについて」→「要望・不具合を送る」から GitHub の Issue としても届く（作成画面が本文入りで開く。送信には GitHub へのログインが必要）。
 Issue は自動では処理されない。「Issue を見て」と言われたら `gh issue list` で未対応を確認し、このファイルに従って対応して、終わったら Issue に結果を書いて閉じる。

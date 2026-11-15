@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite';
 
-// GitHub Pages（https://<user>.github.io/norimono-radar/）で配信するため base を指定
+// GitHub Pages の独自ドメイン（https://norimono-radar.doitmyself.net/）のルートで配信する
 export default defineConfig({
-  base: '/norimono-radar/',
+  base: '/',
   // MapLibre 本体が約1MBあるため
   build: { chunkSizeWarningLimit: 1500 },
 });

@@ -2,7 +2,7 @@
 
 日本のすべての新幹線と、日本の上空の飛行機・近海の旅客船の「いまどこにいるか」を地図に表示する Web アプリです。スマホでの表示を基本にしていて、PC のブラウザでも使えます。日本語と英語を切り替えられます。
 
-公開先: https://fuuchan-lab.github.io/norimono-radar/
+公開先: https://norimono-radar.doitmyself.net/ （GitHub Pages の独自ドメイン。`public/CNAME`。旧 URL の https://fuuchan-lab.github.io/norimono-radar/ からは転送される）
 
 > **注意**: 列車の位置は、運転パターンから作った**推定時刻表**をもとに計算しています。実際のダイヤ・遅延・運休は反映されず、号数も実際とは異なります。実際の運行状況は各社の公式情報で確認してください。
 
@@ -39,15 +39,15 @@
 ログインは [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model) のトークン方式で、ブラウザだけで完結します（LeadLog と同じ）。登録内容は利用者の Google ドライブのアプリ専用領域（appDataFolder）の `user.json` に保存します（`src/user.ts`）。
 
 1. [Google Cloud コンソール](https://console.cloud.google.com/) でプロジェクト「Norimono Radar」を作り、「Google Drive API」を有効にする
-2. 「OAuth 同意画面」を作る（アプリ名: のりものレーダー、スコープ: `drive.appdata`・`userinfo.profile`、プライバシーポリシー: `https://fuuchan-lab.github.io/norimono-radar/privacy.html`）。「テスト中」の間は、テストユーザーに登録したアカウントだけログインできる
-3. 「認証情報」→「OAuth クライアント ID」→ 種類「ウェブ アプリケーション」で作り、「承認済みの JavaScript 生成元」に `https://fuuchan-lab.github.io`・`http://localhost:5173`・`http://localhost:4173` を登録する
+2. 「OAuth 同意画面」を作る（アプリ名: のりものレーダー、スコープ: `drive.appdata`・`userinfo.profile`、プライバシーポリシー: `https://norimono-radar.doitmyself.net/privacy.html`）。「テスト中」の間は、テストユーザーに登録したアカウントだけログインできる
+3. 「認証情報」→「OAuth クライアント ID」→ 種類「ウェブ アプリケーション」で作り、「承認済みの JavaScript 生成元」に `https://norimono-radar.doitmyself.net`・`http://localhost:5173`・`http://localhost:4173` を登録する
 4. クライアント ID（公開してよい値）を `.env.production` と `.env.development` の `VITE_GOOGLE_CLIENT_ID` に書く。未設定の場合、ログインと登録のボタンは出ない
 
 ## 開発
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173/norimono-radar/
+npm run dev      # http://localhost:5173/
 npm run build    # dist/ に出力
 ```
 
