@@ -40,6 +40,7 @@
         <li><strong>ログインした Google アカウントの Google ドライブのアプリ専用領域</strong>（appDataFolder）：登録内容（ファイル名 user.json）。この領域は、利用者のドライブのファイル一覧には表示されず、本アプリからしか読み書きできません。他の端末でログインしても同じ登録内容を使えます。</li>
       </ul>
       <p>本アプリの開発者が、上記の個人の情報や登録内容を受け取ることはありません。</p>
+      <p>ただし、設定の画面から要望・お問い合わせを送った場合は、書いた内容と、状況を知るための情報（開いていた画面の URL、言語、地図の中心とズーム、ブラウザの種類）が、Google フォームを通じて開発者に届きます。名前やメールアドレスは集めません（本文に書いた場合を除く）。いただいた内容は、アプリの改善と返答のためだけに使います。</p>
 
       <h2>Google のデータの利用</h2>
       <p>本アプリは、Google ドライブのアプリ専用領域へのアクセス権（drive.appdata）と、基本的なプロフィール（名前・プロフィール画像）を利用します。ドライブのほかのファイルを読んだり変更したりすることはできません。これらは上記の保存・表示のためだけに使い、第三者に提供しません。本アプリによる Google の API から受け取った情報の使用と他のアプリへの移転は、<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API サービスのユーザーデータに関するポリシー</a>（限定使用の要件を含む）に従います。</p>
@@ -52,6 +53,8 @@
         <li>Google（ログインと、Google ドライブへの保存。ログインした場合のみ）</li>
         <li>aisstream.io：利用者が自分の API キーを登録した場合のみ。旅客船の位置を受信するため、<strong>利用者のブラウザから直接</strong> stream.aisstream.io へつなぎ、利用者の API キーと受信する範囲（日本周辺）を送ります。開発者のサーバーは通らず、開発者がキーを受け取ることはありません。</li>
         <li>RapidAPI（AeroDataBox）：利用者が自分の API キーを登録した場合のみ。空港の発着予定を取得するため、<strong>利用者のブラウザから直接</strong> rapidapi.com へ、空港コード・時間帯と利用者の API キーを送ります。開発者のサーバーは通らず、開発者がキーを受け取ることはありません。キーの利用状況・料金は、利用者と RapidAPI の契約に従います。</li>
+        <li>Google フォーム：要望・お問い合わせを送る場合のみ（上記の内容）</li>
+        <li>PayPal：運営資金のご協力（寄付）をする場合のみ。PayPal の画面で入力した情報は PayPal が扱い、開発者はアプリから受け取りません。</li>
       </ul>
 
       <h2>広告・アクセス解析</h2>
@@ -72,7 +75,7 @@
       <p><strong>DoItMyself</strong>（<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>）：Harry が「とにかく自分でやってみる」で作ったアプリを公開している場所です。展示会のリード記録「LeadLog」、日常の発見を地図に残す「CapLog」、「CleanLog」、「頭痛ログ」などを公開しています。</p>
 
       <h2>お問い合わせ</h2>
-      <p>本アプリについてのお問い合わせは、<a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub の Issues</a> へお寄せください。</p>
+      <p>本アプリについてのお問い合わせは、アプリの「設定」→「要望・不具合・お問い合わせを送る」からお寄せください（Google フォームで送れます。ログインは要りません）。</p>
     </section>
 
     <section lang="en" id="en">
@@ -98,6 +101,7 @@
         <li><strong>In the private app-data area of your Google Drive</strong> (appDataFolder): your saved items (file name user.json). This area does not appear in your Drive file list and only this app can read or write it. Signing in on another device gives you the same list.</li>
       </ul>
       <p>The developer never receives your personal information or saved items.</p>
+      <p>The exception is a request or question you send from Settings: what you write, plus details that help understand the situation (the page URL, language, map center and zoom, and browser type), reaches the developer through Google Forms. Names and email addresses are not collected (unless you write them in the message). What you send is used only to improve the app and to reply.</p>
 
       <h2>Use of Google data</h2>
       <p>The app uses access to its own app-data area of Google Drive (drive.appdata) and your basic profile (name and picture). It cannot read or change any other files in your Drive. These are used only for the storage and display described above and are not shared with third parties. The app's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
@@ -110,6 +114,8 @@
         <li>Google (sign-in and saving to Google Drive, only when signed in)</li>
         <li>aisstream.io, only if you register your own API key: to receive ferry positions, <strong>your browser connects directly</strong> to stream.aisstream.io and sends your API key and the area to receive (around Japan). This never goes through the developer's server, and the developer never receives the key.</li>
         <li>RapidAPI (AeroDataBox), only if you register your own API key: to get airport timetables, <strong>your browser connects directly</strong> to rapidapi.com and sends the airport code, the time range and your API key. This never goes through the developer's server, and the developer never receives the key. Usage and charges follow your own agreement with RapidAPI.</li>
+        <li>Google Forms, only when you send a request or question (as described above)</li>
+        <li>PayPal, only when you make a donation. What you enter on PayPal's pages is handled by PayPal; the developer receives nothing from the app.</li>
       </ul>
 
       <h2>Advertising and analytics</h2>
@@ -130,7 +136,7 @@
       <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes handmade apps, including LeadLog (trade-show lead notes), CapLog (everyday discoveries on a map), CleanLog and a headache log.</p>
 
       <h2>Contact</h2>
-      <p>For questions about the app, please use <a href="https://github.com/fuuchan-lab/norimono-radar/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+      <p>For questions about the app, use Settings → "Send a request, bug report or question" in the app (sent with Google Forms; no sign-in needed).</p>
     </section>
     <script>
       // 右上の ×: アプリの中で重ねて開いたときはアプリに閉じてもらう。直接開いたときは前の画面かアプリへ戻る

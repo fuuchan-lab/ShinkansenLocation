@@ -1619,10 +1619,12 @@ function renderMyPanel() {
   );
 }
 
-// ---- 要望・不具合の送信（GitHub の Issue の作成画面を、本文を入れた状態で開く） ----
-const ISSUES_URL = 'https://github.com/fuuchan-lab/norimono-radar/issues/new';
+// ---- 要望・お問い合わせの送信（Google フォームを、本文を入れた状態で開く） ----
+// VITE_REQUEST_FORM は Google フォームの「事前入力したリンク」（…/viewform?usp=pp_url&entry.123=…）。未設定なら欄を出さない
+const REQUEST_FORM: string = import.meta.env.VITE_REQUEST_FORM ?? '';
 function renderRequestForm() {
   const tx = t();
+  $('request-form').hidden = !REQUEST_FORM;
   $('request-title').textContent = tx.requestTitle;
   $('request-text').setAttribute('placeholder', tx.requestPlaceholder);
   $('request-send').textContent = tx.requestSend;
@@ -1631,13 +1633,14 @@ function renderRequestForm() {
 $('request-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const text = ($('request-text') as HTMLTextAreaElement).value.trim();
-  if (!text) return;
+  if (!text || !REQUEST_FORM) return;
   const c = map.getCenter();
   // どの画面・言語で書かれたか分かるように、状況を添える
   const body = `${text}\n\n---\n画面: ${location.href}\n言語: ${lang} / 地図: ${c.lng.toFixed(3)}, ${c.lat.toFixed(3)} z${map.getZoom().toFixed(1)} / ${navigator.userAgent}`;
-  const title = text.split('\n')[0].slice(0, 60);
-  const params = new URLSearchParams({ title, body: body.slice(0, 4000) });
-  window.open(`${ISSUES_URL}?${params}`, '_blank', 'noopener');
+  const url = new URL(REQUEST_FORM);
+  const entry = [...url.searchParams.keys()].find((k) => k.startsWith('entry.'));
+  if (entry) url.searchParams.set(entry, body.slice(0, 4000));
+  window.open(url, '_blank', 'noopener');
 });
 
 // ---- 言語の切り替え（地図はそのままで、文言と名前を描き直す） ----

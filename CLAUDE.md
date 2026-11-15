@@ -3,8 +3,9 @@
 日本の新幹線（推定位置）・日本の上空の飛行機・近海の旅客船を地図に表示する Web アプリ。
 公開先: https://norimono-radar.doitmyself.net/ （GitHub Pages の独自ドメイン。`public/CNAME`。Vite の base は `/`。リポジトリ: fuuchan-lab/norimono-radar）
 
-指示は、チャットのほか、アプリの「このアプリについて」→「要望・不具合を送る」から GitHub の Issue としても届く（作成画面が本文入りで開く。送信には GitHub へのログインが必要）。
-Issue は自動では処理されない。「Issue を見て」と言われたら `gh issue list` で未対応を確認し、このファイルに従って対応して、終わったら Issue に結果を書いて閉じる。
+指示は、チャットのほか、アプリの「設定」→「要望・不具合・お問い合わせを送る」から Google フォームの回答としても届く（フォームが本文入りで開く。ログイン不要。フォームの「事前入力したリンク」を `.env.production` の `VITE_REQUEST_FORM` に入れる。未設定なら欄を出さない）。
+回答は作者の Google フォームにたまり、自動では処理されない。作者が回答を貼ってきたら、このファイルに従って対応する。
+利用者向けの案内に GitHub を出さない（GitHub のアカウントを持たない人が多いため。aisstream.io だけは GitHub でのサインインが必要なので、GitHub のログイン画面の「Continue with Google」を案内する）。
 
 ## やりとり
 - 日本語で答える。作者（Harry）はスマホでの見た目を重視する
