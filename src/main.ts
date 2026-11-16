@@ -25,13 +25,29 @@ const OFFICIAL = {
   jrk: 'https://www.jrkyushu.co.jp/trains/info/',
 };
 const HOKURIKU_WEST = new Set(['糸魚川', '黒部宇奈月温泉', '富山', '新高岡', '金沢', '小松', '加賀温泉', '芦原温泉', '福井', '越前たけふ', '敦賀']);
-function officialFor(line: string, station: string): { label: string; url: string } {
-  const key: keyof typeof OFFICIAL = line === 'tokaido' ? 'jrc'
+// 公式の時刻表を調べるページ（駅ごとのページは番号で分かれているので、各社の入口へ案内する）
+const OFFICIAL_TT: typeof OFFICIAL = {
+  jrc: 'https://railway.jr-central.co.jp/time-schedule/search/',
+  jrw: 'https://www.jr-odekake.net/railroad/',
+  jre: 'https://timetables.jreast.co.jp/',
+  jrh: 'https://www.jrhokkaido.co.jp/network/station/station.html',
+  jrk: 'https://www.jrkyushu.co.jp/railway/station/index.html',
+};
+function operatorOf(line: string, station: string): keyof typeof OFFICIAL {
+  return line === 'tokaido' ? 'jrc'
     : line === 'sanyo' || (line === 'hokuriku' && HOKURIKU_WEST.has(station)) ? 'jrw'
     : line === 'kyushu' || line === 'nishikyushu' ? 'jrk'
     : line === 'hokkaido' ? 'jrh'
     : 'jre';
+}
+function officialFor(line: string, station: string): { label: string; url: string } {
+  const key = operatorOf(line, station);
   return { label: t().official[key], url: OFFICIAL[key] };
+}
+/** その駅を通る路線の会社の、公式の時刻表へのリンク（会社ごとに1つ） */
+function timetableLinks(lineIds: string[], station: string): string {
+  const keys = [...new Set(lineIds.map((l) => operatorOf(l, station)))];
+  return keys.map((k) => `<a href="${OFFICIAL_TT[k]}" target="_blank" rel="noopener">${t().officialTT[k]} ↗</a>`).join('');
 }
 
 const SEA = '#bed2ff'; // 地理院タイル（淡色地図）の海の色
@@ -938,6 +954,7 @@ function trainSheet(id: string): string {
     <div class="actions">
       <button type="button" id="follow-btn" class="${follow ? 'on' : ''}">${follow ? tx.following : tx.follow}</button>
       <a href="${off.url}" target="_blank" rel="noopener">${off.label} ↗</a>
+      <a href="${OFFICIAL_TT[operatorOf(cur.line, here)]}" target="_blank" rel="noopener">${tx.officialTT[operatorOf(cur.line, here)]} ↗</a>
     </div>
     <ol class="stops">${stops}</ol>
     <p class="small">${tx.trainNote}</p>`;
@@ -962,10 +979,8 @@ function stationSheet(name: string, dir: 1 | -1): string {
   const tab = (d: 1 | -1, label: string) =>
     deps(d).length ? `<button type="button" class="tab ${d === dir ? 'on' : ''}" data-dir="${d}"><b>${label}</b><span>${headed(d)}</span></button>` : '';
 
-  const lineChips = lines
-    .filter((l) => l.stations.some((s) => s.name === name))
-    .map((l) => `<span class="line-chip" style="--c:${l.color}">${lineName(l)}</span>`)
-    .join('');
+  const stationLines = lines.filter((l) => l.stations.some((s) => s.name === name));
+  const lineChips = stationLines.map((l) => `<span class="line-chip" style="--c:${l.color}">${lineName(l)}</span>`).join('');
 
   const curHour = Math.floor(now / 60);
   let marked = false;
@@ -1007,6 +1022,7 @@ function stationSheet(name: string, dir: 1 | -1): string {
         ${favButton('station', name, tx.stationOf(station(name)))}
       </div>
       <div class="line-chips">${lineChips}</div>
+      <p class="tt-warn">${tx.stationWarn}${timetableLinks(stationLines.map((l) => l.id), name)}</p>
       <div class="tabs">${tab(1, tx.down)}${tab(-1, tx.up)}</div>
     </div>
     <div class="timetable">${table || `<p class="small">${tx.noDepartures}</p>`}</div>
