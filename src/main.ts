@@ -135,6 +135,7 @@ let mask: GeoJSONData;
 let area: AreaFeature;
 let routes = new Map<string, Route>();
 let timetable: Timetable;
+const trainsById = new Map<string, Train>();
 const lineColor = new Map<string, string>();
 const hiddenLines = new Set<string>();
 
@@ -241,6 +242,7 @@ async function init() {
   setArea(area);
   routes = buildRoutes(data.network);
   for (const l of lines) lineColor.set(l.id, l.color);
+  for (const tr of timetable.trains) trainsById.set(trainId(tr), tr);
   buildStationIndex();
   await new Promise<void>((resolve) => (map.loaded() ? resolve() : map.once('load', () => resolve())));
   await addIcons(map, lines);
@@ -813,7 +815,8 @@ function refresh() {
 // ---- 下のシート（列車・駅） ----
 function openTrain(id: string) {
   sheet = { kind: 'train', id };
-  follow = true;
+  // 地図に出ている列車は追従する。発車前・運転終了の列車は、停車駅の時刻だけの画面にする
+  follow = shown.has(id);
   showSheet(shown.get(id)?.pos, 8);
 }
 
@@ -872,6 +875,7 @@ function showSheet(center?: [number, number], minZoom = 8) {
   else map.easeTo({ padding, duration: 300 });
 }
 
+let shownSheetKey = '';
 function renderSheet() {
   const el = $('sheet');
   let html = '';
@@ -894,6 +898,12 @@ function renderSheet() {
   // 固定表示する見出しの高さ（時刻表の「○時」もその下に固定する）
   const headH = el.querySelector<HTMLElement>('.sticky')?.offsetHeight ?? 0;
   el.style.setProperty('--head-h', `${headH}px`);
+  // 別の列車・駅などを開いたときは先頭から表示する（1分ごとの更新では位置を保つ）
+  const key = JSON.stringify(sheet, ['kind', 'id', 'name', 'hex', 'mmsi']);
+  if (key !== shownSheetKey) {
+    shownSheetKey = key;
+    el.scrollTop = 0;
+  }
   if (scrollToNow) {
     scrollToNow = false;
     const mark = el.querySelector<HTMLElement>('.now-line');
@@ -913,28 +923,35 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt
 
 function trainSheet(id: string): string {
   const cur = states.find((s) => s.id === id);
-  if (!cur) return '';
-  const route = routes.get(cur.train.r)!;
-  const s = cur.train.s;
+  const train = cur?.train ?? trainsById.get(id);
+  if (!train) return '';
+  const route = routes.get(train.r)!;
+  const s = train.s;
   const tx = t();
   const key = (k: number) => route.stations[s[k][0]].name;
   const name = (k: number) => station(key(k));
   const dest = name(s.length - 1);
-  const color = lineColor.get(cur.line) ?? '#333';
-  const here = route.stations[cur.at].name;
-  const curK = s.findIndex((x) => x[0] === cur.at);
-  const status = cur.stopped
-    ? tx.stoppedAt(station(here))
-    : tx.runningBetween(station(here), curK + 1 < s.length ? name(curK + 1) : dest);
-  const speed = cur.stopped ? '' : `<span class="speed">${tx.speed(Math.round(cur.speed / 5) * 5)}</span>`;
-  const next = cur.nextStop !== null ? tx.nextStop(name(cur.nextStop), formatTime(s[cur.nextStop][1])) : '';
-  const off = officialFor(cur.line, here);
+  // 地図に出ていない列車（発車前・運転終了）は、今の時刻が始発の発車前か終着の到着後か
+  const nowT = nowMinutes() < 180 ? nowMinutes() + 1440 : nowMinutes();
+  const notStarted = !cur && nowT < s[0][2];
+  const line = cur?.line ?? route.stations[Math.max(s[0][0], s[1][0])].line;
+  const color = lineColor.get(line) ?? '#333';
+  const here = cur ? route.stations[cur.at].name : key(0);
+  const curK = cur ? s.findIndex((x) => x[0] === cur.at) : notStarted ? -1 : s.length;
+  const status = !cur
+    ? notStarted ? tx.notStarted(name(0), formatTime(s[0][2])) : tx.finished(dest, formatTime(s[s.length - 1][1]))
+    : cur.stopped
+      ? tx.stoppedAt(station(here))
+      : tx.runningBetween(station(here), curK + 1 < s.length ? name(curK + 1) : dest);
+  const speed = !cur || cur.stopped ? '' : `<span class="speed">${tx.speed(Math.round(cur.speed / 5) * 5)}</span>`;
+  const next = cur && cur.nextStop !== null ? tx.nextStop(name(cur.nextStop), formatTime(s[cur.nextStop][1])) : '';
+  const off = officialFor(line, here);
   const stops = s
     .map((x, k) => ({ x, k }))
     .filter(({ x }) => x[3] === 1)
     .map(({ x, k }) => {
-      const passed = cur.stopped ? k < curK : k <= curK;
-      const now = cur.stopped && k === curK;
+      const passed = cur?.stopped === false ? k <= curK : k < curK || (!cur && k === curK);
+      const now = !!cur?.stopped && k === curK;
       const time = k === 0 ? tx.dep(formatTime(x[2]))
         : k === s.length - 1 ? tx.arr(formatTime(x[1]))
         : `${tx.arr(formatTime(x[1]))} ${tx.dep(formatTime(x[2]))}`;
@@ -945,16 +962,16 @@ function trainSheet(id: string): string {
   return `
     <div class="sheet-head" style="--c:${color}">
       <span class="arrow"></span>
-      <h2>${trainTitle(cur.train.n, cur.train.no)}</h2>
+      <h2>${trainTitle(train.n, train.no)}</h2>
       <span class="sub">${tx.bound(dest)}</span>
-      ${favButton('train', id, trainTitle(cur.train.n, cur.train.no))}
+      ${favButton('train', id, trainTitle(train.n, train.no))}
     </div>
     <p class="status">${status}${speed}</p>
     <p class="next">${next}</p>
     <div class="actions">
-      <button type="button" id="follow-btn" class="${follow ? 'on' : ''}">${follow ? tx.following : tx.follow}</button>
+      ${cur ? `<button type="button" id="follow-btn" class="${follow ? 'on' : ''}">${follow ? tx.following : tx.follow}</button>` : ''}
       <a href="${off.url}" target="_blank" rel="noopener">${off.label} ↗</a>
-      <a href="${OFFICIAL_TT[operatorOf(cur.line, here)]}" target="_blank" rel="noopener">${tx.officialTT[operatorOf(cur.line, here)]} ↗</a>
+      <a href="${OFFICIAL_TT[operatorOf(line, here)]}" target="_blank" rel="noopener">${tx.officialTT[operatorOf(line, here)]} ↗</a>
     </div>
     <ol class="stops">${stops}</ol>
     <p class="small">${tx.trainNote}</p>`;
@@ -996,7 +1013,7 @@ function stationSheet(name: string, dir: 1 | -1): string {
     const color = lineColor.get(e.line) ?? '#333';
     rows.push(`
       <li class="${e.dep < now ? 'passed' : ''}">
-        <button type="button" class="dep" ${running.has(id) ? `data-train="${id}"` : 'disabled'}>
+        <button type="button" class="dep" data-train="${id}">
           <span class="t">${String(Math.floor(e.dep % 60)).padStart(2, '0')}</span>
           <span class="nm" style="--c:${color}">${trainLabel(e.train.n, e.train.no)}</span>
           <span class="dest">${tx.bound(station(e.dest))}${e.first ? ` <small>${tx.origin}</small>` : ''}</span>
