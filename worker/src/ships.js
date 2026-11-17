@@ -79,6 +79,30 @@ export class ShipStore {
     return out;
   }
 
+  /**
+   * 海ログ（OceanLog）用: 範囲内のすべての船（船種を問わない）。行の形は passengers() と同じ。船種が不明なら 0
+   * box: { s, w, n, e }
+   */
+  inBox(box) {
+    const now = Date.now();
+    const out = [];
+    for (const [mmsi, p] of this.positions) {
+      if (now - p.at > STALE_MS) {
+        this.positions.delete(mmsi);
+        continue;
+      }
+      if (p.lat < box.s || p.lat > box.n || p.lon < box.w || p.lon > box.e) continue;
+      const s = this.statics.get(mmsi);
+      out.push([
+        mmsi, s?.name || p.name || '', round(p.lat, 5), round(p.lon, 5), p.sog ?? null,
+        p.cog != null && p.cog < 360 ? p.cog : null,
+        p.hdg != null && p.hdg < 360 ? p.hdg : null,
+        s?.type ?? 0, s?.dest ?? '', Math.round((now - p.at) / 1000), s?.len || null,
+      ]);
+    }
+    return out;
+  }
+
   /** 保存用: 旅客船の船名・船種だけ（再起動後すぐ表示できるように） */
   passengerStatics() {
     return [...this.statics].filter(([, s]) => isPassenger(s.type));
@@ -86,6 +110,20 @@ export class ShipStore {
 }
 
 const round = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
+
+/** 海ログの範囲の広さの上限（度）。約 110km 四方 */
+export const MAX_BOX_DEG = 1;
+
+/** "南,西,北,東"（度）を { s, w, n, e } に。0.1 度単位で、広すぎる・おかしい値は null */
+export function parseBox(text) {
+  const v = String(text ?? '').split(',').map(Number);
+  if (v.length !== 4 || v.some((x) => !Number.isFinite(x))) return null;
+  const [s, w, n, e] = v;
+  if (s >= n || w >= e || n - s > MAX_BOX_DEG + 1e-9 || e - w > MAX_BOX_DEG + 1e-9) return null;
+  if (s < -90 || n > 90 || w < -180 || e > 180) return null;
+  if (v.some((x) => Math.abs(x * 10 - Math.round(x * 10)) > 1e-6)) return null;
+  return { s, w, n, e };
+}
 
 const decoder = new TextDecoder();
 /** メッセージを文字列にする（文字列・ArrayBuffer・型付き配列・Blob のどれでも） */
@@ -188,6 +226,11 @@ export class ShipTracker {
       return Response.json(this.flights.airport(url.searchParams.get('code') ?? '', Date.now()));
     }
     await this.ensureConnected();
+    if (url.pathname === '/vessels') {
+      const box = parseBox(url.searchParams.get('bbox'));
+      if (!box) return Response.json({ error: 'bad bbox' }, { status: 400 });
+      return Response.json({ now: Date.now(), connected: !!this.ws, ships: this.store.inBox(box) });
+    }
     const ships = this.store.passengers();
     return Response.json({
       now: Date.now(),

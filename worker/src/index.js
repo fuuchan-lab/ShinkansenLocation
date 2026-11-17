@@ -2,6 +2,7 @@
 // 航空機: adsb.lol から集め、国内線・国際線を判定する。
 // 旅客船: ships.js の Durable Object が aisstream.io の AIS データを集める。GET /ships -> { now, connected, ships: [...] }
 // GET /aircraft -> { now, ac: [[hex, callsign, lat, lon, 高度ft, 対地速度kt, 針路, 機種, 登録記号, 国際線=1/国内線=0, 位置の古さ秒, 出発, 到着, 到着地の緯度, 経度, 便名(NH1098 など)]] }
+// GET /vessels?bbox=南,西,北,東 -> { now, connected, ships: [...] }: 海ログ（OceanLog）用。範囲内のすべての船（行の形は /ships と同じ。0.1 度単位、1 度四方まで）
 // GET /airport?code=HND -> { now, usual: { dep, arr }, official: { dep, arr } | null }
 //   usual: 飛行中の便の観測から作った、ふだんの離陸・着陸の時刻（flights.js。全社の便）
 //   official: 公共交通オープンデータセンターの JAL・ANA の発着情報（secret の ODPT_KEY があるときだけ）
@@ -42,18 +43,24 @@ const json = (body, status = 200, extra = {}) =>
   });
 
 export { ShipTracker } from './ships.js';
+import { parseBox } from './ships.js';
+
+const PATHS = new Set(['/aircraft', '/ships', '/vessels', '/airport']);
 
 const tracker = (env) => env.SHIPS.get(env.SHIPS.idFromName('japan'));
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname !== '/aircraft' && url.pathname !== '/ships' && url.pathname !== '/airport') return json({ error: 'not found' }, 404);
+    if (!PATHS.has(url.pathname)) return json({ error: 'not found' }, 404);
     const code = url.searchParams.get('code') ?? '';
     if (url.pathname === '/airport' && !/^[A-Z]{3}$/.test(code)) return json({ error: 'bad code' }, 400);
+    const bbox = url.searchParams.get('bbox') ?? '';
+    if (url.pathname === '/vessels' && !parseBox(bbox)) return json({ error: 'bad bbox' }, 400);
 
     const cache = caches.default;
-    const key = new Request(`${url.origin}${url.pathname}${url.pathname === '/airport' ? `?code=${code}` : ''}`);
+    const query = url.pathname === '/airport' ? `?code=${code}` : url.pathname === '/vessels' ? `?bbox=${bbox}` : '';
+    const key = new Request(`${url.origin}${url.pathname}${query}`);
     const hit = await cache.match(key);
     if (hit) return hit;
 
@@ -76,7 +83,7 @@ export default {
         maxAge = 10;
       }
     } else {
-      // 旅客船は Durable Object が AIS に接続して集めている
+      // 旅客船・海ログの船は Durable Object が AIS に接続して集めている
       body = await tracker(env).fetch(request).then((r) => r.json());
     }
     const res = json(body, 200, { 'cache-control': `public, max-age=${maxAge}` });
