@@ -112,6 +112,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
   width: 7px; height: 15px; background: var(--c);
   clip-path: polygon(50% 0, 92% 32%, 92% 100%, 8% 100%, 8% 32%);
 }
+.rain-mark {
+  width: 9px; height: 9px; background: var(--c);
+  border-radius: 50% 0 50% 50%; transform: rotate(-45deg); margin: 2px 1px 0;
+}
+.chip-time { font-variant-numeric: tabular-nums; opacity: 0.75; }
 .ship-mark.big { width: 11px; height: 24px; align-self: center; }
 .badge-type.ship { color: #fff; }
 .chip-sep { flex: none; width: 1px; margin: 4px 2px; background: rgba(0, 0, 0, 0.18); }
@@ -383,6 +388,14 @@ html:not([lang='en']) [data-lang='en'], html[lang='en'] [data-lang='ja'] { displ
 .search-results .kind { flex: none; min-width: 4.5em; font-size: 11px; color: var(--muted); }
 .search-results .sub { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-results .empty { padding: 10px 4px; font-size: 13px; color: var(--muted); }
+
+/* ---- オフラインの表示 ---- */
+.offline-badge {
+  position: fixed; z-index: 14; left: 50%; transform: translateX(-50%); top: calc(var(--safe-top) + 64px);
+  max-width: calc(100% - 16px); white-space: nowrap; padding: 6px 12px; border-radius: 999px; background: #3a3f47; color: #fff;
+  font-size: 12px; line-height: 1.4; box-shadow: var(--shadow); text-align: center;
+}
+.offline-badge[hidden] { display: none; }
 
 /* ---- ゲストの表示時間が終わったときの案内 ---- */
 .live-notice {

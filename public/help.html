@@ -64,11 +64,12 @@
         <li><strong>駅・空港</strong>：拡大すると名前が出ます。空港の名前の下は空港コード（HND など）です。</li>
         <li>トラッキング中・お気に入りのものは、アイコンの白い縁取りが太くなり、縮小しても名前が出ます。</li>
         <li>破線の内側が表示範囲（陸地を含む日本の排他的経済水域）です。</li>
+        <li><strong>雨雲</strong>：フィルターで「雨雲」をオンにすると、いま降っている雨を半透明で重ねます（気象庁の雨雲レーダー。5分ごとに更新、チップに観測時刻を表示）。表示する時刻を変えても、雨雲は最新のままです。</li>
       </ul>
 
       <h2 id="ja-menu">3. 下のメニュー</h2>
       <ul>
-        <li><strong>フィルター</strong>：国内線・国際線・旅客船・各路線の表示を切り替えます。</li>
+        <li><strong>フィルター</strong>：雨雲・国内線・国際線・旅客船・各路線の表示を切り替えます。</li>
         <li><strong>検索</strong>：駅・空港（空港コードも可）・走っている列車（のぞみ1 など）・便名（NH20 など）・船名で探し、タップするとその場所へ移ります。</li>
         <li><strong>現在地</strong>：自分のいる場所へ移ります（位置情報の許可が必要です）。</li>
         <li><strong>マイリスト</strong>：トラッキング中の列車・飛行機・船と、お気に入りの駅の一覧です（ログインが必要）。</li>
@@ -121,8 +122,10 @@
         <li>地図：国土地理院（地図の地名は日本語です）。</li>
         <li>飛行機：航空機が発信する ADS-B を有志が受信して公開しているデータ（<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>、ODbL）。30秒ごとに更新し、その間は速度と向きから位置を進めています。受信局のない空域の機体は表示されません。国内線・国際線は便名の経路（<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>）から判定し、わからない場合は航空会社や登録国から推定しています。</li>
         <li>旅客船：船が発信する AIS を有志が受信して公開しているデータ（<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>）。受信局のない海域の船や、AIS を発信していない船は表示されません。</li>
+        <li>雨雲：<a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">気象庁の雨雲の動き（高解像度降水ナウキャスト）</a>の実況を、ブラウザから直接読み込んで表示しています。電波のない場所では表示されません。</li>
         <li>空港の発着：上の飛行機のデータ（adsb.lol・adsbdb）を、このアプリの中継サーバーが2分ごとに観測して作った推定です。</li>
         <li>表示範囲：陸地を含む日本の排他的経済水域。<a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">海上保安庁の領海等概念図</a>に合わせ、外国との境界が未画定の海域は中間線までとしています（Marine Regions、CC BY 4.0 を加工して作成）。範囲の外は白く（ダークでは暗く）表示します。</li>
+        <li>オフライン：一度開いたあとは、電波のない場所でも開けます。新幹線の推定表示と、見たことのある地図は使えます（日本全体の地図は初回に少し先読みします）。飛行機・船・空港の発着は最新のデータが必要なので、電波が戻るまで更新されません。</li>
       </ul>
 
       <h2 id="ja-official">9. 公式の運行情報</h2>
@@ -193,11 +196,12 @@
         <li><strong>Stations and airports</strong>: names appear when you zoom in. The code under an airport name is its airport code (e.g. HND).</li>
         <li>Tracked and favorite items have a thicker white outline and keep their names when zoomed out.</li>
         <li>The covered area is inside the dashed line (Japan's EEZ including land).</li>
+        <li><strong>Rain</strong>: turn on "Rain" in the filter to overlay current rainfall semi-transparently (Japan Meteorological Agency rain radar, updated every 5 minutes; the observation time is shown on the chip). Rain always shows the latest data, even if you change the displayed time.</li>
       </ul>
 
       <h2 id="en-menu">3. Bottom menu</h2>
       <ul>
-        <li><strong>Filter</strong>: show or hide domestic and international flights, ferries and each line.</li>
+        <li><strong>Filter</strong>: show or hide rain, domestic and international flights, ferries and each line.</li>
         <li><strong>Search</strong>: find stations, airports (codes too), running trains (e.g. Nozomi 1), flights (e.g. NH20) or ships, then tap to go there.</li>
         <li><strong>Location</strong>: move to where you are (location permission needed).</li>
         <li><strong>My list</strong>: your tracked trains, flights and ferries and favorite stations (sign-in needed).</li>
@@ -250,8 +254,10 @@
         <li>Base map: GSI Japan (place names on the map are in Japanese).</li>
         <li>Flights: ADS-B data received and shared by volunteers (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL), updated every 30 seconds and moved forward by speed and heading in between. Aircraft in areas without receivers are not shown. Domestic / international is judged from the flight's route (<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>), or from the airline and country of registration when unknown.</li>
         <li>Ferries: AIS data received and shared by volunteers (<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>). Ships in areas without receivers, or without AIS, are not shown.</li>
+        <li>Rain: current observations from the <a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">Japan Meteorological Agency's high-resolution precipitation nowcast</a>, loaded directly by your browser. Not shown without a connection.</li>
         <li>Airport flights: estimates made by this app's relay server, which observes the flight data above (adsb.lol, adsbdb) every 2 minutes.</li>
         <li>Covered area: Japan's EEZ including land, following the <a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">Japan Coast Guard's map</a>, with median lines where boundaries are not yet agreed (Marine Regions, CC BY 4.0, processed). Outside the area is shown white (dark in dark mode).</li>
+        <li>Offline: after the first visit the app opens without a connection. Estimated Shinkansen and the map areas you have viewed still work (the whole-Japan map is pre-fetched a little on first use). Flights, ships and airport boards need live data and update again once you are back online.</li>
       </ul>
 
       <h2 id="en-official">9. Official service info</h2>

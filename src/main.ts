@@ -12,6 +12,8 @@ import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type Tra
 import { airportByCode, airportCode, isJapanAirport } from './names-en';
 import { fetchBoard, type Board } from './schedule';
 import { airportName, lang, lineName, lineShort, setLang, station, t, trainLabel, trainTitle, type Lang } from './i18n';
+import { setupOffline } from './offline';
+import { addRainLayer, applyRainTheme, RAIN_COLOR, rainTime, setRainVisible } from './rain';
 import { effectiveTheme, getTheme, onThemeChange, setTheme, type Theme } from './theme';
 import { GOOGLE_CLIENT_ID, isFav, onUserChange, preloadGoogle, refresh as refreshUser, saveSettings, signIn, signOut, toggleFav, user, type FavKind } from './user';
 
@@ -168,6 +170,7 @@ let ships: Ship[] = [];
 const LIVE_INTERVAL_MS = 30_000;
 const showPlanes = { domestic: loadSetting('planes.domestic', true), international: loadSetting('planes.international', true) };
 let showShips = loadSetting('ships', true);
+let showRain = loadSetting('rain', false);
 function loadSetting(key: string, fallback: boolean): boolean {
   try {
     const v = localStorage.getItem(key);
@@ -247,6 +250,9 @@ async function init() {
   await new Promise<void>((resolve) => (map.loaded() ? resolve() : map.once('load', () => resolve())));
   await addIcons(map, lines);
   addLayers();
+  // 雨雲は地図の上・範囲外を隠す層の下に重ねる
+  addRainLayer(map, 'mask', showRain, renderRainChip);
+  applyRainTheme(effectiveTheme() === 'dark');
   buildLineFilter();
   requestAnimationFrame(frame);
   // 出典表記は長いので最初はたたむ（ⓘで開ける）
@@ -381,6 +387,7 @@ function applyMapTheme() {
   map.setPaintProperty('gsi', 'raster-hue-rotate', dark ? 180 : 0);
   map.setPaintProperty('gsi', 'raster-saturation', dark ? -0.2 : 0);
   map.setPaintProperty('mask', 'fill-color', c.outside);
+  applyRainTheme(dark);
   map.setPaintProperty('eez-line', 'line-color', c.eez);
   map.setPaintProperty('line-casing', 'line-color', c.casing);
   map.setPaintProperty('ship-selected', 'circle-color', c.selectedFill);
@@ -626,9 +633,37 @@ function applyLineFilter() {
   refresh();
 }
 
+/** 雨雲のチップの文字（重ねているときは実況の時刻も出す） */
+function rainChipLabel() {
+  const time = showRain ? rainTime() : '';
+  return `<span class="rain-mark"></span>${t().rain}${time ? ` <span class="chip-time">${time}</span>` : ''}`;
+}
+function renderRainChip() {
+  const b = document.querySelector<HTMLButtonElement>('[data-rain-chip]');
+  if (b) b.innerHTML = rainChipLabel();
+}
+
 function buildLineFilter() {
   const nav = $('line-filter');
   nav.innerHTML = '';
+  const rain = document.createElement('button');
+  rain.type = 'button';
+  rain.dataset.rainChip = '';
+  rain.className = `chip ${showRain ? 'on' : ''}`;
+  rain.style.setProperty('--c', RAIN_COLOR);
+  rain.innerHTML = rainChipLabel();
+  rain.setAttribute('aria-pressed', String(showRain));
+  rain.addEventListener('click', () => {
+    showRain = !showRain;
+    saveSetting('rain', showRain);
+    saveSettings({ rain: showRain });
+    rain.classList.toggle('on', showRain);
+    rain.setAttribute('aria-pressed', String(showRain));
+    setRainVisible(showRain);
+    renderRainChip();
+  });
+  nav.appendChild(rain);
+  nav.appendChild(Object.assign(document.createElement('span'), { className: 'chip-sep' }));
   if (LIVE_API) {
     const ship = document.createElement('button');
     ship.type = 'button';
@@ -1380,6 +1415,12 @@ function applySavedSettings() {
     saveSetting('ships', s.ships);
     layers = true;
   }
+  if (s.rain !== undefined && s.rain !== showRain) {
+    showRain = s.rain;
+    saveSetting('rain', s.rain);
+    setRainVisible(showRain);
+    layers = true;
+  }
   if (layers) {
     buildLineFilter();
     drawLive();
@@ -1419,7 +1460,7 @@ function renderSettingsInfo() {
   const tx = t();
   const shownLines = lines.filter((l) => !hiddenLines.has(l.id)).map((l) => lineShort(l));
   const layers = [
-    showPlanes.domestic ? tx.domestic : '', showPlanes.international ? tx.international : '', showShips ? tx.ships : '',
+    showPlanes.domestic ? tx.domestic : '', showPlanes.international ? tx.international : '', showShips ? tx.ships : '', showRain ? tx.rain : '',
     shownLines.length === lines.length ? tx.allLines : shownLines.join('・'),
   ].filter(Boolean).join('、');
   const rows: [string, string][] = [
@@ -1810,6 +1851,7 @@ $('time-now').addEventListener('click', () => {
   refresh();
 });
 
+setupOffline();
 init().catch((err) => {
   console.error(err);
   $('clock-count').textContent = t().loadFailed;

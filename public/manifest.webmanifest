@@ -3,9 +3,11 @@
   "short_name": "のりものレーダー",
   "description": "日本の新幹線・飛行機・旅客船の位置を地図に表示します。",
   "lang": "ja",
+  "categories": ["travel", "navigation"],
+  "id": "/",
   "start_url": "/",
   "scope": "/",
-  "display": "browser",
+  "display": "standalone",
   "theme_color": "#0b1f3a",
   "background_color": "#0b1f3a",
   "icons": [

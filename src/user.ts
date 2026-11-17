@@ -19,6 +19,7 @@ export interface Settings {
   domestic?: boolean;
   international?: boolean;
   ships?: boolean;
+  rain?: boolean;
 }
 export interface UserData { version: 1; favorites: Record<FavKind, Fav[]>; settings: Settings }
 export interface Account { name: string; picture: string }

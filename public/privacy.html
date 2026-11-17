@@ -53,6 +53,7 @@
       <p>地図や情報を表示するため、ブラウザから次のサービスに接続します。どの通信にも、利用者の登録内容や Google アカウントの情報、現在地は含みません（各サービスには、通常の通信と同じく IP アドレスなどが届きます）。</p>
       <ul>
         <li>国土地理院（地図の画像）、OpenFreeMap（地図の文字のフォント）</li>
+        <li>気象庁（雨雲の画像。フィルターで雨雲をオンにした場合のみ）</li>
         <li>飛行機・旅客船の位置を中継するサーバー（開発者が Cloudflare Workers で運用）。公開されている adsb.lol・adsbdb・aisstream.io のデータをまとめて返すだけで、利用者を識別する情報は記録しません。空港の発着も、空港コードを送ってここから受け取ります。</li>
         <li>Google（ログインと、Google ドライブへの保存。ログインした場合のみ）</li>
         <li>Google フォーム：要望・お問い合わせを送る場合のみ（上記の内容）</li>
@@ -112,6 +113,7 @@
       <p>To show the map and information, your browser connects to the following services. None of these requests include your saved items, Google account information or location (each service receives your IP address and similar details, as with any web request).</p>
       <ul>
         <li>GSI Japan (map images) and OpenFreeMap (map label fonts)</li>
+        <li>Japan Meteorological Agency (rain cloud images, only when Rain is turned on in the filter)</li>
         <li>A relay server for flight and ferry positions, run by the developer on Cloudflare Workers. It only combines public data from adsb.lol, adsbdb and aisstream.io and does not record anything that identifies users. Airport flights are also fetched from it by sending the airport code.</li>
         <li>Google (sign-in and saving to Google Drive, only when signed in)</li>
         <li>Google Forms, only when you send a request or question (as described above)</li>
