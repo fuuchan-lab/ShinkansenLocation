@@ -8,6 +8,7 @@ import { aircraftAt, aircraftLabel, fetchAircraft, LIVE_API, type Aircraft } fro
 import { inArea, setArea, type AreaFeature } from './area';
 import { addIcons, PLANE_COLORS, SHIP_COLOR } from './icons';
 import { fetchShips, shipAt, shipLabel, type Ship } from './ships';
+import { estimateFerries, hhmm, loadFerries, withoutReceived, type FerryShip } from './ferries';
 import { advance, formatTime, jstNowMinutes, placeAt, stateAt, trainId, type TrainState } from './simulate';
 import { airportByCode, airportCode, isJapanAirport } from './names-en';
 import { fetchBoard, type Board } from './schedule';
@@ -167,6 +168,10 @@ const CORRECTION_MS = 3000;
 // 飛行中の航空機と旅客船（30秒ごとに取得し、その間は速度と向きで進める）
 let aircraft: Aircraft[] = [];
 let ships: Ship[] = [];
+/** 時刻表から推定したフェリー（AIS で届いている船は除く） */
+let ferryShips: FerryShip[] = [];
+const allShips = (): Ship[] => [...ships, ...ferryShips];
+const isFerry = (s: Ship): s is FerryShip => 'est' in s;
 const LIVE_INTERVAL_MS = 30_000;
 const showPlanes = { domestic: loadSetting('planes.domestic', true), international: loadSetting('planes.international', true) };
 let showShips = loadSetting('ships', true);
@@ -236,6 +241,8 @@ function assignPlatforms(list: TrainState[]) {
 const slotOf = (st: TrainState) => (st.speed === 0 ? platforms.get(platformKey(st))?.get(st.id) ?? 0 : 0);
 
 async function init() {
+  // フェリーの推定データは、なくても他の表示はできる
+  loadFerries().catch((err) => console.warn(err));
   const data = await loadData();
   lines = data.network.lines;
   timetable = data.timetable;
@@ -501,6 +508,8 @@ function addLayers() {
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
+    // 時刻表からの推定は少し薄く
+    paint: { 'icon-opacity': ['case', ['get', 'est'], 0.7, 1] },
   });
   // 選んだ船・飛行機の丸はアイコンの下に描く（ダークでは中を明るくする。列車と同じ）
   map.addLayer({
@@ -664,7 +673,8 @@ function buildLineFilter() {
   });
   nav.appendChild(rain);
   nav.appendChild(Object.assign(document.createElement('span'), { className: 'chip-sep' }));
-  if (LIVE_API) {
+  // 旅客船は時刻表からの推定もあるので、中継サーバーがなくても切り替えられる
+  {
     const ship = document.createElement('button');
     ship.type = 'button';
     ship.className = `chip ${showShips ? 'on' : ''}`;
@@ -679,7 +689,8 @@ function buildLineFilter() {
       ship.setAttribute('aria-pressed', String(showShips));
       drawLive();
     });
-    for (const [key, label] of [['domestic', t().domestic], ['international', t().international]] as const) {
+    // 飛行機は中継サーバーがあるときだけ
+    if (LIVE_API) for (const [key, label] of [['domestic', t().domestic], ['international', t().international]] as const) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `chip plane ${showPlanes[key] ? 'on' : ''}`;
@@ -826,15 +837,18 @@ function drawLive() {
     geometry: { type: 'Point', coordinates: aircraftAt(a, ms) },
   })));
 
-  const shipList = showShips ? ships : [];
+  // フェリーは表示している時刻（列車と同じ）で推定する。日付は日本時間の今日
+  const today = Math.floor((ms + 9 * 3600 * 1000) / 86400000);
+  ferryShips = withoutReceived(estimateFerries(nowMinutes(), today, ms), ships).filter((f) => inArea(f.pos));
+  const shipList = showShips ? allShips() : [];
   setData('ships', shipList.map((s) => ({
     type: 'Feature',
-    properties: { mmsi: s.mmsi, heading: s.heading ?? 0, label: shipLabel(s), fav: shipFav(s) },
-    geometry: { type: 'Point', coordinates: shipAt(s, ms) },
+    properties: { mmsi: s.mmsi, heading: s.heading ?? 0, label: shipLabel(s), fav: shipFav(s), est: isFerry(s) },
+    geometry: { type: 'Point', coordinates: isFerry(s) ? s.pos : shipAt(s, ms) },
   })));
 
   const count = $('clock-count');
-  const live = LIVE_API ? `${visible.length ? ` ✈${visible.length}` : ''}${shipList.length ? ` ⛴${shipList.length}` : ''}` : '';
+  const live = `${LIVE_API && visible.length ? ` ✈${visible.length}` : ''}${shipList.length ? ` ⛴${shipList.length}` : ''}`;
   const text = (count.dataset.trains ?? '') + live;
   if (count.textContent !== text) count.textContent = text;
 }
@@ -873,8 +887,8 @@ function openAircraft(hex: string) {
 function openShip(mmsi: number) {
   sheet = { kind: 'ship', mmsi };
   follow = false;
-  const s = ships.find((x) => x.mmsi === mmsi);
-  showSheet(s ? shipAt(s, Date.now()) : undefined, map.getZoom());
+  const s = allShips().find((x) => x.mmsi === mmsi);
+  showSheet(s ? (isFerry(s) ? s.pos : shipAt(s, Date.now())) : undefined, map.getZoom());
 }
 
 function openAirport(name: string) {
@@ -1113,8 +1127,9 @@ function aircraftSheet(hex: string): string {
 }
 
 function shipSheet(mmsi: number): string {
-  const s = ships.find((x) => x.mmsi === mmsi);
+  const s = allShips().find((x) => x.mmsi === mmsi);
   if (!s) return '';
+  if (isFerry(s)) return ferrySheet(s);
   const tx = t();
   const rows: [string, string][] = [];
   rows.push([tx.status, s.moving ? tx.underway : tx.moored]);
@@ -1136,6 +1151,36 @@ function shipSheet(mmsi: number): string {
       <a href="https://www.vesselfinder.com/vessels/details/${s.mmsi}" target="_blank" rel="noopener">${tx.moreOn('VesselFinder')}</a>
     </div>
     <p class="small">${tx.shipNote(age)}</p>`;
+}
+
+/** 時刻表から推定したフェリーの情報シート */
+function ferrySheet(s: FerryShip): string {
+  const tx = t();
+  const e = s.est;
+  const en = lang === 'en';
+  const port = (ja: string, eng: string) => escapeHtml(en ? eng : ja);
+  const label = shipLabel(s);
+  const rows: [string, string][] = [];
+  rows.push([tx.ferryRoute, `${escapeHtml(en ? e.route.opEn : e.route.op)}<br>${port(e.origin, e.originEn)} → ${port(e.terminus, e.terminusEn)}`]);
+  if (e.inPort) {
+    rows.push([tx.status, tx.ferryInPort(port(e.from, e.fromEn))]);
+    rows.push([tx.ferryDepart, `${hhmm(e.arr)} → ${hhmm(e.dep)}`]);
+  } else {
+    rows.push([tx.status, tx.underway]);
+    rows.push([tx.ferryLeg, `${port(e.from, e.fromEn)} ${tx.dep(hhmm(e.dep))} → ${port(e.to, e.toEn)} ${tx.arr(hhmm(e.arr))}`]);
+    if (s.sog) rows.push([tx.shipSpeed, `${tx.about(String(Math.round(s.sog)))} ${tx.knots}`]);
+  }
+  if (s.mmsi > 0) rows.push(['MMSI', String(s.mmsi)]);
+  return `
+    <div class="sheet-head" style="--c:${SHIP_COLOR}">
+      <span class="ship-mark big"></span>
+      <h2>${escapeHtml(label)}</h2>
+      <span class="badge-type ship">${tx.badge}</span>
+      ${favButton('ship', String(s.mmsi), label)}
+    </div>
+    <dl class="facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    ${e.route.url ? `<div class="actions"><a href="${escapeHtml(e.route.url)}" target="_blank" rel="noopener">${tx.ferryOfficial}</a></div>` : ''}
+    <p class="small">${tx.ferryNote}</p>`;
 }
 
 /**
@@ -1599,8 +1644,9 @@ function renderMyPanel() {
     return row('aircraft', f.id, f.label, `${tx.flying}${p.from && p.to ? ` · ${p.from} → ${p.to}` : ''}${alt}`, `aircraft:${p.hex}`);
   });
   const boats = fav.ship.map((f) => {
-    const s = ships.find((x) => String(x.mmsi) === f.id);
+    const s = allShips().find((x) => String(x.mmsi) === f.id);
     if (!s) return row('ship', f.id, f.label, tx.notReceived, '');
+    if (isFerry(s)) return row('ship', f.id, f.label, `${s.est.inPort ? tx.ferryInPort(escapeHtml(s.est.from)) : tx.underway} · ${tx.badge}`, `ship:${s.mmsi}`);
     return row('ship', f.id, f.label, `${s.moving ? tx.underway : tx.moored} · ${tx.minutesAgo(Math.round((now - s.at) / 60000))}`, `ship:${s.mmsi}`);
   });
   const favStations = fav.station.map((f) => row('station', f.id, tx.stationOf(station(f.id)), tx.openTimetable, `station:${f.id}`));
@@ -1806,9 +1852,12 @@ function renderSearch() {
     const r = match(a.flight, a.callsign, a.reg);
     if (r >= 0) hits.push({ kind: tx.aircraft, label: aircraftLabel(a), sub: a.from && a.to ? `${a.from} → ${a.to}` : '', open: () => openAircraft(a.hex), rank: r });
   }
-  for (const s of ships) {
-    const r = match(s.name, String(s.mmsi));
-    if (r >= 0) hits.push({ kind: tx.ships, label: shipLabel(s), sub: '', open: () => openShip(s.mmsi), rank: r });
+  for (const s of allShips()) {
+    const f = isFerry(s) ? s.est : null;
+    const r = f ? match(s.name, f.route.name, f.route.nameEn, f.route.op, f.route.opEn) : match(s.name, String(s.mmsi));
+    const label = shipLabel(s);
+    const sub = f ? `${lang === 'en' ? f.route.opEn : f.route.op} · ${tx.badge}` : '';
+    if (r >= 0) hits.push({ kind: tx.ships, label, sub, open: () => openShip(s.mmsi), rank: r });
   }
   const shown = hits.sort((x, y) => x.rank - y.rank).slice(0, 40);
   searchHits = shown.map((h) => h.open);

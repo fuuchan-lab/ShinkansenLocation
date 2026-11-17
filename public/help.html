@@ -60,7 +60,7 @@
         <li><strong>時刻</strong>をタップすると、表示する時刻を変えたり、×10・×60 で早送りしたりできます（夜の確認用）。</li>
         <li><span class="icon">▲</span><strong>新幹線</strong>：路線の色の細い三角で、進行方向を向いています。駅に止まっている列車は、のりばのように並べています（推定）。</li>
         <li><span class="icon">✈</span><strong>飛行機</strong>：国内線は黄色、国際線はピンク。機首が進行方向です。</li>
-        <li><span class="icon">⛴</span><strong>旅客船</strong>：濃い水色の、上から見た船の形。船首が進行方向です。</li>
+        <li><span class="icon">⛴</span><strong>旅客船</strong>：濃い水色の、上から見た船の形。船首が進行方向です。少し薄い船は、時刻表から推定したフェリーです。</li>
         <li><strong>駅・空港</strong>：拡大すると名前が出ます。空港の名前の下は空港コード（HND など）です。</li>
         <li>トラッキング中・お気に入りのものは、アイコンの白い縁取りが太くなり、縮小しても名前が出ます。</li>
         <li>破線の内側が表示範囲（陸地を含む日本の排他的経済水域）です。</li>
@@ -122,6 +122,7 @@
         <li>地図：国土地理院（地図の地名は日本語です）。</li>
         <li>飛行機：航空機が発信する ADS-B を有志が受信して公開しているデータ（<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>、ODbL）。30秒ごとに更新し、その間は速度と向きから位置を進めています。受信局のない空域の機体は表示されません。国内線・国際線は便名の経路（<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>）から判定し、わからない場合は航空会社や登録国から推定しています。</li>
         <li>旅客船：船が発信する AIS を有志が受信して公開しているデータ（<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>）。受信局のない海域の船や、AIS を発信していない船は表示されません。</li>
+        <li>フェリー（推定）：日本近海の沖合や離島の航路は AIS の受信局がほとんどないため、主要なフェリー航路（約90航路）は各社の時刻表から位置を推定して表示します。航路の線は推定で、欠航・遅れ・臨時便・ダイヤの変更は反映されません。AIS で実際の位置が届いている船は、そちらを表示します。</li>
         <li>雨雲：<a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">気象庁の雨雲の動き（高解像度降水ナウキャスト）</a>の実況を、ブラウザから直接読み込んで表示しています。電波のない場所では表示されません。</li>
         <li>空港の発着：上の飛行機のデータ（adsb.lol・adsbdb）を、このアプリの中継サーバーが2分ごとに観測して作った推定です。</li>
         <li>表示範囲：陸地を含む日本の排他的経済水域。<a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">海上保安庁の領海等概念図</a>に合わせ、外国との境界が未画定の海域は中間線までとしています（Marine Regions、CC BY 4.0 を加工して作成）。範囲の外は白く（ダークでは暗く）表示します。</li>
@@ -192,7 +193,7 @@
         <li>Tap the <strong>time</strong> to change the displayed time or fast-forward ×10 / ×60.</li>
         <li><span class="icon">▲</span><strong>Trains</strong>: thin triangles in the line's color, pointing in the direction of travel. Trains stopped at a station are lined up like platforms (estimated).</li>
         <li><span class="icon">✈</span><strong>Flights</strong>: yellow for domestic, pink for international, nose in the direction of travel.</li>
-        <li><span class="icon">⛴</span><strong>Ferries</strong>: dark light-blue ships seen from above, bow in the direction of travel.</li>
+        <li><span class="icon">⛴</span><strong>Ferries</strong>: dark light-blue ships seen from above, bow in the direction of travel. Paler ships are ferries estimated from timetables.</li>
         <li><strong>Stations and airports</strong>: names appear when you zoom in. The code under an airport name is its airport code (e.g. HND).</li>
         <li>Tracked and favorite items have a thicker white outline and keep their names when zoomed out.</li>
         <li>The covered area is inside the dashed line (Japan's EEZ including land).</li>
@@ -254,6 +255,7 @@
         <li>Base map: GSI Japan (place names on the map are in Japanese).</li>
         <li>Flights: ADS-B data received and shared by volunteers (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL), updated every 30 seconds and moved forward by speed and heading in between. Aircraft in areas without receivers are not shown. Domestic / international is judged from the flight's route (<a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>), or from the airline and country of registration when unknown.</li>
         <li>Ferries: AIS data received and shared by volunteers (<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>). Ships in areas without receivers, or without AIS, are not shown.</li>
+        <li>Ferries (estimated): AIS receivers rarely cover Japan's offshore and island routes, so major ferry routes (about 90) are shown at positions estimated from each operator's timetable. Route lines are approximate, and cancellations, delays, extra sailings and timetable changes are not reflected. Ships whose real position is received by AIS are shown from AIS instead.</li>
         <li>Rain: current observations from the <a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">Japan Meteorological Agency's high-resolution precipitation nowcast</a>, loaded directly by your browser. Not shown without a connection.</li>
         <li>Airport flights: estimates made by this app's relay server, which observes the flight data above (adsb.lol, adsbdb) every 2 minutes.</li>
         <li>Covered area: Japan's EEZ including land, following the <a href="https://www1.kaiho.mlit.go.jp/ryokai/gainenzu.html" target="_blank" rel="noopener">Japan Coast Guard's map</a>, with median lines where boundaries are not yet agreed (Marine Regions, CC BY 4.0, processed). Outside the area is shown white (dark in dark mode).</li>

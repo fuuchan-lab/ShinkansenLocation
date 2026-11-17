@@ -72,10 +72,12 @@ npm run build    # dist/ に出力
 | `airports.json` | 空港の位置 | `node scripts/build-airports.mjs <C28のUTF-8フォルダ>` |
 | `timetable.json` | 推定時刻表 | `npm run data:timetable` |
 | `area.json` | 対象範囲（陸地を含む日本の EEZ）。範囲外を隠すマスクはブラウザでこれから作る | `node scripts/build-area.mjs <EEZ の GeoJSON>` |
+| `ferries.json` | 主要なフェリー航路の線と時刻（推定位置の表示用） | `node scripts/build-ferries.mjs <Natural Earth のフォルダ>` |
 
 - 路線・駅: [国土数値情報 鉄道データ（N02）](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2024.html)。zip を展開した `UTF-8` フォルダを指定します。
 - 空港: [国土数値情報 空港データ（C28）](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html)
 - 排他的経済水域: [Marine Regions](https://www.marineregions.org/)（World EEZ, CC BY 4.0）。取得方法は `scripts/build-area.mjs` の先頭にあります
+- フェリー: 航路・港・時刻は `scripts/ferries.config.mjs` に手で書きます（2026-11 時点の各社の時刻表から作成。ダイヤが変わったら直す）。港と港の間の線は、[Natural Earth](https://www.naturalearthdata.com/) の `ne_10m_land.geojson`・`ne_10m_minor_islands.geojson`（パブリックドメイン。GitHub の nvkelso/natural-earth-vector の `geojson/` にあります）を置いたフォルダを指定すると、陸を避けた経路を自動で作ります。日本近海の沖合は AIS の受信局がほとんどないため、AIS で届かない船はこの時刻から位置を推定して表示します。
 - 運転パターン（停車駅・本数・速度）は `scripts/services.config.mjs` で調整します。路線の駅順と色は `scripts/lines.config.mjs` にあります。
 
 ### 推定の方法

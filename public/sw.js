@@ -13,7 +13,7 @@ const DOCS = ['/help.html', '/privacy.html', '/favicon.ico', '/apple-touch-icon.
 /** 最初の起動は SW がまだ働いていないので、ページが読む js・css もここで取っておく */
 async function precache() {
   const c = await caches.open(APP);
-  await c.addAll(['/icon-32.png', '/icon-48.png', '/icon-192.png', '/manifest.webmanifest', '/data/network.json', '/data/timetable.json', '/data/airports.json', '/data/area.json']).catch(() => {});
+  await c.addAll(['/icon-32.png', '/icon-48.png', '/icon-192.png', '/manifest.webmanifest', '/data/network.json', '/data/timetable.json', '/data/airports.json', '/data/area.json', '/data/ferries.json']).catch(() => {});
   // ヘルプ・プライバシーポリシーも、一度も開いていなくてもオフラインで見られるように最初に取っておく
   await Promise.all(DOCS.map((d) => c.add(d).catch(() => {})));
   const res = await fetch('/', { cache: 'no-cache' });

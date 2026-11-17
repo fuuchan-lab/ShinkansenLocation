@@ -120,7 +120,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ship-mark.big { width: 11px; height: 24px; align-self: center; }
 .badge-type.ship { color: #fff; }
 .chip-sep { flex: none; width: 1px; margin: 4px 2px; background: rgba(0, 0, 0, 0.18); }
-.badge-type { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--c); color: #222; font-weight: 600; }
+.badge-type { flex: none; white-space: nowrap; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--c); color: #222; font-weight: 600; }
 
 /* ---- 飛行機の情報 ---- */
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 12px 0; font-size: 14px; }
