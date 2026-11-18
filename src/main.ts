@@ -877,11 +877,12 @@ function openStation(name: string, dir: 1 | -1 = 1) {
   showSheet(f ? ((f.geometry as { coordinates: [number, number] }).coordinates) : undefined, 9);
 }
 
-function openAircraft(hex: string) {
+/** zoom: この縮尺まで拡大する（空港の発着一覧から開いたときは、機体のまわりまで寄せる） */
+function openAircraft(hex: string, zoom = map.getZoom()) {
   sheet = { kind: 'aircraft', hex };
   follow = false;
   const a = aircraft.find((x) => x.hex === hex);
-  showSheet(a ? aircraftAt(a, Date.now()) : undefined, map.getZoom());
+  showSheet(a ? aircraftAt(a, Date.now()) : undefined, zoom);
 }
 
 function openShip(mmsi: number) {
@@ -1247,20 +1248,59 @@ const msMin = (ms: number) => {
 // 出発は 1 時間前から 12 時間後まで、到着は 1 時間前から 6 時間後まで（飛行中の便は、この範囲の外でも出す）
 const BOARD_WINDOW = { dep: [-60, 720], arr: [-60, 360] } as const;
 
+/** 便名を比べる形（JAL・ANA の発表は JL033 のように 0 を付けるので、JL33 にそろえる） */
+const flightKey = (n: string) => (n ?? '').replace(/^([A-Z0-9]{2})0+(?=\d)/, '$1');
+/** コールサインの航空会社（ICAO）→ 便名の航空会社（IATA）。便名を調べられなかった機体の照らし合わせに使う */
+const ICAO_IATA: Record<string, string> = {
+  ANA: 'NH', AKX: 'NH', AJX: 'NH', JAL: 'JL', JLJ: 'JL', JAC: 'JL', HAC: 'JL', JTA: 'NU', RAC: 'NU', SKY: 'BC', ADO: 'HD',
+  SNJ: '6J', SFJ: '7G', IBX: 'FW', ORC: 'OC', APJ: 'MM', JJP: 'GK', FDA: 'JH', TZP: 'ZG',
+};
+/** 飛んでいる機体の便名の候補（調べた便名と、コールサインから作った便名） */
+function liveKeys(a: Aircraft): string[] {
+  const keys = a.flight ? [flightKey(a.flight)] : [];
+  const m = /^([A-Z]{3})0*(\d+)$/.exec(a.callsign.trim());
+  if (m && ICAO_IATA[m[1]]) keys.push(`${ICAO_IATA[m[1]]}${m[2]}`);
+  return keys;
+}
+/** 出発・飛行中で、地図に機体がいるはずの状態 */
+const AIRBORNE = new Set(['InAir', 'Departed', 'LeftGate', 'EnRoute', 'EstimatedArrival', 'Delayed', '']);
+
 /** JAL・ANA の発表・飛行中の便・ふだんの時刻を、1 つの一覧にまとめる（同じ便は、この順に優先） */
 function boardRows(code: string, dir: 'dep' | 'arr', board: Board | undefined, now: number): BoardRow[] {
   const tx = t();
   const rows: BoardRow[] = [];
   const seen = new Set<string>();
-  const findLive = (names: string[]) => aircraft.find((a) => names.some((n) => n && (a.flight === n || a.callsign === n)));
+  const byKey = new Map<string, Aircraft>();
+  for (const a of aircraft) for (const k of liveKeys(a)) byKey.set(k, a);
+  const official = board?.[dir].official ?? [];
+  // 便名で照らし合わせる
+  const match = new Map<(typeof official)[number], Aircraft>();
+  const used = new Set<string>();
+  for (const o of official) {
+    const a = o.numbers.map((n) => byKey.get(flightKey(n))).find((x) => x && !used.has(x.hex));
+    if (a) {
+      match.set(o, a);
+      used.add(a.hex);
+    }
+  }
+  // 便名で見つからない飛行中の便（共同運航の便名など）は、同じ区間を飛んでいる機体が 1 機だけなら結び付ける
+  for (const o of official) {
+    if (match.has(o) || !o.other || o.status === 'Cancelled' || !AIRBORNE.has(o.status)) continue;
+    if (dir === 'dep' && !o.actual) continue;
+    const cands = aircraft.filter((a) => !used.has(a.hex) && (dir === 'dep' ? a.from === code && a.to === o.other : a.from === o.other && a.to === code));
+    if (cands.length === 1) {
+      match.set(o, cands[0]);
+      used.add(cands[0].hex);
+    }
+  }
 
-  for (const o of board?.[dir].official ?? []) {
+  for (const o of official) {
     const sched = hhmmMin(o.scheduled);
     if (sched === null) continue;
     const actual = hhmmMin(o.actual);
     const est = hhmmMin(o.estimated);
     const late = est !== null ? relMin(est, sched) : 0;
-    const a = findLive(o.numbers);
+    const a = match.get(o);
     let status = tx.statuses[o.status] ?? o.status;
     let cls = '';
     if (o.status === 'Cancelled') cls = 'cancel';
@@ -1274,12 +1314,15 @@ function boardRows(code: string, dir: 'dep' | 'arr', board: Board | undefined, n
       rel: relMin(actual ?? est ?? sched, now), time: formatTime(sched), label: o.numbers[0] ?? '', other: o.other,
       intl: !isJapanAirport(o.other), status, cls, hex: a?.hex,
     });
-    o.numbers.forEach((n) => seen.add(n));
+    o.numbers.forEach((n) => {
+      seen.add(n);
+      seen.add(flightKey(n));
+    });
     if (a) seen.add(a.callsign);
   }
 
   for (const f of airportFlights(code)) {
-    if (f.arr !== (dir === 'arr') || f.minutes === null || seen.has(f.a.flight) || seen.has(f.a.callsign)) continue;
+    if (f.arr !== (dir === 'arr') || f.minutes === null || used.has(f.a.hex) || seen.has(f.a.flight) || seen.has(flightKey(f.a.flight)) || seen.has(f.a.callsign)) continue;
     const rel = dir === 'arr' ? f.minutes : -f.minutes;
     rows.push({
       rel, time: tx.approx(formatTime((now + rel + 1440) % 1440)), label: aircraftLabel(f.a), other: dir === 'arr' ? f.a.from : f.a.to,
@@ -1290,7 +1333,7 @@ function boardRows(code: string, dir: 'dep' | 'arr', board: Board | undefined, n
   }
 
   for (const u of board?.[dir].usual ?? []) {
-    if (seen.has(u.flight) || seen.has(u.callsign)) continue;
+    if (seen.has(u.flight) || seen.has(flightKey(u.flight)) || seen.has(u.callsign)) continue;
     // 今日すでに離陸・着陸していれば、その時刻（推定）を出す
     const min = u.recent !== null ? msMin(u.recent) : u.min;
     const status = u.recent !== null ? (dir === 'dep' ? tx.tookOff : tx.landed) : tx.usualDays(u.days);
@@ -1402,7 +1445,7 @@ function bindSheet() {
     }),
   );
   body.querySelectorAll<HTMLButtonElement>('[data-aircraft]').forEach((b) =>
-    b.addEventListener('click', () => openAircraft(b.dataset.aircraft!)),
+    b.addEventListener('click', () => openAircraft(b.dataset.aircraft!, 8)),
   );
 }
 
