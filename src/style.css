@@ -105,6 +105,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   opacity: 0.55;
 }
 .chip.on { opacity: 1; }
+/* Android アプリ（Google Play 版）の中では、寄付（外部の決済）への案内を出さない */
+.in-app .donate-part { display: none !important; }
 .chip .swatch { width: 14px; height: 5px; border-radius: 3px; background: var(--c); }
 .plane-mark { color: var(--c); font-size: 14px; line-height: 1; -webkit-text-stroke: 0.6px rgba(58, 48, 0, 0.7); }
 .plane-mark.big { font-size: 22px; align-self: center; }

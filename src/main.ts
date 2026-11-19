@@ -1813,6 +1813,24 @@ $('doc-close').addEventListener('click', closeDoc);
 window.addEventListener('message', (e) => {
   if (e.origin === location.origin && e.data === 'close-doc') closeDoc();
 });
+/**
+ * Android アプリ（Google Play 版の TWA）から開かれたか。TWA は最初の読み込みで referrer が android-app://パッケージ名 になる。
+ * 読み込み直すと referrer は消えるので、見つけたらそのタブの間は覚えておく（ヘルプも同じ印を見る）。
+ * アプリの中では寄付（PayPal）への案内を出さない（Google Play の決済の決まりのため）
+ */
+function markAndroidApp() {
+  const fromApp = document.referrer.startsWith('android-app://');
+  let inApp = fromApp;
+  try {
+    if (fromApp) sessionStorage.setItem('opened-from-android-app', '1');
+    inApp = fromApp || sessionStorage.getItem('opened-from-android-app') === '1';
+  } catch {
+    // 覚えられなくても、最初の読み込みでは判定できる
+  }
+  document.documentElement.classList.toggle('in-app', inApp);
+}
+markAndroidApp();
+
 // data-doc の付いたリンクは、新しいタブではなく重ねて開く（言語に合わせて英語の部分へ）
 document.addEventListener('click', (e) => {
   const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-doc]');

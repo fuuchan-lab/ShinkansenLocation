@@ -28,7 +28,14 @@
       .doc-close { position: fixed; top: 10px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #d5dae1; background: #fff; font-size: 20px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); }
       @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } section { background: #1e293b; } a { color: #93c5fd; } .donate { background: #2a2320; border-color: #5b4038; } .amt-chips button { background: #1e293b; } .donate-row input { background: #0f172a; color: #e5e7eb; border-color: #334155; } .donate-note { color: #9ca3af; } .doc-close { background: #1e293b; color: #e5e7eb; border-color: #334155; } }
       @media (max-width: 520px) { .toc { columns: 1; } }
+      /* Android アプリ（Google Play 版）の中では、寄付（外部の決済）への案内を出さない */
+      .in-app .donate-part { display: none; }
     </style>
+    <script>
+      try {
+        if (document.referrer.indexOf('android-app://') === 0 || sessionStorage.getItem('opened-from-android-app') === '1') document.documentElement.classList.add('in-app');
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <button type="button" class="doc-close" aria-label="閉じる / Close" onclick="closeDoc()">×</button>
@@ -47,7 +54,7 @@
         <li><a href="#ja-data">データについて</a></li>
         <li><a href="#ja-official">公式の運行情報</a></li>
         <li><a href="#ja-author">作者について・お問い合わせ</a></li>
-        <li><a href="#ja-donate">運営資金のご協力</a></li>
+        <li class="donate-part"><a href="#ja-donate">運営資金のご協力</a></li>
       </ol>
 
       <h2 id="ja-about">1. このアプリについて</h2>
@@ -142,8 +149,9 @@
       <p><strong>Harry</strong>（ハリー）：名古屋を拠点に世界を飛び回る会社員。何でも自分で探し、作り、直すまで納得しないタイプで、ブログ「<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>」でデジタルガジェットや DIY のデジタル生活を紹介しています。</p>
       <p><strong>DoItMyself</strong>（<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>）：Harry が自分で作ったアプリを公開している場所です。</p>
       <p>要望・不具合・お問い合わせは、アプリの「設定」→「要望・不具合・お問い合わせを送る」からお寄せください（Google フォームで送れます）。</p>
-      <p>アプリを気に入っていただけたら、<a href="#ja-donate">運営資金のご協力</a>をお願いします。</p>
+      <p class="donate-part">アプリを気に入っていただけたら、<a href="#ja-donate">運営資金のご協力</a>をお願いします。</p>
 
+      <div class="donate-part">
       <h2 id="ja-donate">11. 運営資金のご協力</h2>
       <p>のりものレーダーは、無料・広告なしで公開しています。中継サーバーやドメインなど、続けるための費用は作者が負担しています。アプリを気に入っていただけたら、コーヒー1杯分の <strong>200円</strong> からご支援いただけるとうれしいです。</p>
       <div class="donate">
@@ -165,6 +173,7 @@
         ※ 支払先は運営出納代行会社の「ユーアンドミーテクノロジー」と表示されます（<a href="https://www.youme.info" target="_blank" rel="noopener">https://www.youme.info</a>）。</p>
       </div>
       <p>一つひとつのご支援が、このアプリを続ける大きな力になります。心より感謝申し上げます。</p>
+      </div>
     </section>
 
     <section lang="en" id="en">
@@ -180,7 +189,7 @@
         <li><a href="#en-data">About the data</a></li>
         <li><a href="#en-official">Official service info</a></li>
         <li><a href="#en-author">Author and contact</a></li>
-        <li><a href="#en-donate">Support the app</a></li>
+        <li class="donate-part"><a href="#en-donate">Support the app</a></li>
       </ol>
 
       <h2 id="en-about">1. About</h2>
@@ -275,8 +284,9 @@
       <p><strong>Harry</strong>: an office worker based in Nagoya who travels the world and is never satisfied until things are found, built or fixed by hand. Harry writes about digital gadgets and a DIY digital life on the blog "<a href="https://hvd.jp/" target="_blank" rel="noopener">Harry's Virtual Dimension</a>" (in Japanese).</p>
       <p><strong>DoItMyself</strong> (<a href="https://doitmyself.net/" target="_blank" rel="noopener">doitmyself.net</a>): where Harry publishes handmade apps.</p>
       <p>Send requests, bug reports or questions from Settings → "Send a request, bug report or question" in the app (sent with Google Forms).</p>
-      <p>If you like the app, please consider <a href="#en-donate">supporting it</a>.</p>
+      <p class="donate-part">If you like the app, please consider <a href="#en-donate">supporting it</a>.</p>
 
+      <div class="donate-part">
       <h2 id="en-donate">11. Support the app</h2>
       <p>Norimono Radar is free and has no ads. The author pays for the relay server, the domain and other running costs. If you like the app, a donation from <strong>200 yen</strong> (about a cup of coffee) would be greatly appreciated.</p>
       <div class="donate">
@@ -298,6 +308,7 @@
         * The payee is shown as 「ユーアンドミーテクノロジー」, the company that handles the payments (<a href="https://www.youme.info" target="_blank" rel="noopener">https://www.youme.info</a>).</p>
       </div>
       <p>Every bit of support helps keep the app running. Thank you very much.</p>
+      </div>
     </section>
 
     <script>

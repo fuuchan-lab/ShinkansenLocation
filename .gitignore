@@ -1,3 +1,14 @@
 node_modules/
 dist/
 *.local
+
+# Android アプリ（TWA）のビルドでできるもの。署名の鍵はリポジトリの外に置く
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/*.apk
+android/*.aab
+android/*.idsig
+*.keystore
+*.jks

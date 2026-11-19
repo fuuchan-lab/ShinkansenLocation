@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "net.doitmyself.norimonoradar",
+      "sha256_cert_fingerprints": [
+        "A2:24:58:A7:F6:29:5E:E0:F3:10:34:E5:21:E5:20:29:AC:A9:B8:C8:11:EC:5D:F6:AA:C5:06:42:22:BF:45:17"
+      ]
+    }
+  }
+]

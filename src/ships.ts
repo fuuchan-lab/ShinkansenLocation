@@ -40,7 +40,9 @@ function parseShips(data: { now: number; ships: Row[] }, prev: Ship[]): Ship[] {
     let heading = moving ? cog ?? hdg : hdg ?? cog;
     if (heading === null && p && movedKm([p.lon, p.lat], [lon, lat]) > 0.05) heading = bearing([p.lon, p.lat], [lon, lat]);
     if (heading === null && p) heading = p.heading;
-    return { mmsi, name, lat, lon, sog, heading, moving, type, dest, length, at: data.now - age * 1000 };
+    // AIS は名前・行先の空いた部分を @ で埋めて送ってくる
+    const clean = (v: string) => (v ?? '').replace(/@+/g, ' ').trim();
+    return { mmsi, name: clean(name), lat, lon, sog, heading, moving, type, dest: clean(dest), length, at: data.now - age * 1000 };
   });
 }
 
